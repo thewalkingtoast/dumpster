@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:16
     environment:
+      - POSTGRES_DB=dumpster_development
       - POSTGRES_PASSWORD=dumpster
       - POSTGRES_USER=dumpster
-      - POSTGRES_DB=dumpster_development
     ports:
       - "5432:5432"
     volumes:
@@ -20,8 +20,9 @@ services:
     depends_on:
       - postgres
     environment:
-      - PORT=4000
       - DATABASE_URL=postgres://dumpster:dumpster@postgres:5432/dumpster_development
+      - PHX_HOST=local.happypath.tools
+      - PORT=4000
     ports:
       - "4000:4000"
     volumes:
