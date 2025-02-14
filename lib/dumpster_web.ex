@@ -43,7 +43,7 @@ defmodule DumpsterWeb do
         layouts: [html: DumpsterWeb.Layouts]
 
       import Plug.Conn
-      import DumpsterWeb.Gettext
+      use Gettext, backend: DumpsterWeb.Gettext
 
       unquote(verified_routes())
     end
@@ -85,7 +85,7 @@ defmodule DumpsterWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import DumpsterWeb.CoreComponents
-      import DumpsterWeb.Gettext
+      use Gettext, backend: DumpsterWeb.Gettext
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS
