@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_PASSWORD=dumpster
+      - POSTGRES_USER=dumpster
+      - POSTGRES_DB=dumpster_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - "postgres_data:/var/lib/postgresql/data"
+
+  web:
+    build:
+      context: "."
+      target: "develop-test"
+    image: dumpster
+    tty: true
+    stdin_open: true
+    depends_on:
+      - postgres
+    environment:
+      - PORT=4000
+      - DATABASE_URL=postgres://dumpster:dumpster@postgres:5432/dumpster_development
+    ports:
+      - "4000:4000"
+    volumes:
+      - ".:/app"
+
+volumes:
+  postgres_data:
