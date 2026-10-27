@@ -3,6 +3,8 @@ package store
 import (
 	"testing"
 	"time"
+
+	"github.com/adam/dumpster/internal/model"
 )
 
 func TestCreateAndGet(t *testing.T) {
@@ -36,5 +38,34 @@ func TestMaxDumpsters(t *testing.T) {
 	}
 	if _, err := s.Create(); err != ErrFull {
 		t.Fatalf("Create 3 err = %v, want ErrFull", err)
+	}
+}
+
+func TestAddAssignsSeqTrimsAndListsNewestFirst(t *testing.T) {
+	s := New(Limits{MaxRecords: 3}, time.Hour)
+	d, err := s.Create()
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		if _, err := s.Add(d.ID, &model.Record{Kind: model.KindHTTP}); err != nil {
+			t.Fatalf("Add %d: %v", i, err)
+		}
+	}
+	recs, ok := s.List(d.ID)
+	if !ok {
+		t.Fatal("List: not found")
+	}
+	if len(recs) != 3 {
+		t.Fatalf("len = %d, want 3 (MaxRecords)", len(recs))
+	}
+	if recs[0].Seq != 5 || recs[2].Seq != 3 {
+		t.Fatalf("seqs = %d..%d, want 5..3", recs[0].Seq, recs[2].Seq)
+	}
+	if recs[0].Events == nil {
+		t.Fatal("Events is nil; JSON would serialise null instead of []")
+	}
+	if _, err := s.Add("does-not-exist", &model.Record{}); err != ErrNotFound {
+		t.Fatalf("Add on unknown dumpster = %v, want ErrNotFound", err)
 	}
 }

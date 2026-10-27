@@ -109,3 +109,46 @@ func (s *Store) entry(sid string) (*entry, bool) {
 	e, ok := s.dumps[sid]
 	return e, ok
 }
+
+// Add assigns Seq, stores a copy of rec, trims to MaxRecords, and returns the
+// stored record. Events is never nil, so callers can marshal it directly.
+func (s *Store) Add(sid string, rec *model.Record) (model.Record, error) {
+	e, ok := s.entry(sid)
+	if !ok {
+		return model.Record{}, ErrNotFound
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if !e.dump.ExpiresAt.After(s.now()) {
+		return model.Record{}, ErrNotFound
+	}
+	e.nextSeq++
+	stored := *rec
+	stored.Seq = e.nextSeq
+	if stored.ReceivedAt.IsZero() {
+		stored.ReceivedAt = s.now()
+	}
+	if stored.Events == nil {
+		stored.Events = []model.Event{}
+	}
+	e.records = append(e.records, &stored)
+	if over := len(e.records) - s.limits.MaxRecords; over > 0 {
+		e.records = append([]*model.Record(nil), e.records[over:]...)
+	}
+	return stored, nil
+}
+
+// List returns copies of every record, newest first.
+func (s *Store) List(sid string) ([]model.Record, bool) {
+	e, ok := s.entry(sid)
+	if !ok {
+		return nil, false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make([]model.Record, 0, len(e.records))
+	for i := len(e.records) - 1; i >= 0; i-- {
+		out = append(out, *e.records[i])
+	}
+	return out, true
+}
