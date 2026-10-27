@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dumpster {{.ID}}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body class="debug"
+      data-id="{{.ID}}"
+      data-origin="{{.Origin}}"
+      data-grpc="{{.PublicGRPC}}"
+      data-tcp="{{.PublicTCP}}"
+      data-udp="{{.PublicUDP}}"
+      data-expires="{{.ExpiresAt}}">
+  <header class="bar">
+    <div class="who">
+      <h1>Dumpster <span class="mono">{{.ID}}</span></h1>
+      <p class="sub">burns in <strong id="ttl">&mdash;</strong> &middot; anyone with this link can read it
+        &middot; <a href="/">Rent a dumpster</a></p>
+    </div>
+    <div class="status" id="status" aria-live="polite">connecting&hellip;</div>
+  </header>
+
+  <main class="grid">
+    <section class="feed">
+      <h2>Traffic <span class="count" id="count">0</span></h2>
+      <p class="empty" id="empty">Nothing yet. Send something &mdash; rows appear the moment they land.</p>
+      <ul class="records" id="records"></ul>
+    </section>
+
+    <aside class="send">
+      <h2>How to send</h2>
+
+      <h3>HTTP <span class="hint">any method, any path</span></h3>
+      <pre class="cmd" data-cmd="http"></pre>
+
+      <h3>SSE <span class="hint">streams back to you</span>
+        <button class="mini" id="btn-sse" type="button">Trigger SSE</button></h3>
+      <pre class="cmd" data-cmd="sse"></pre>
+
+      <h3>gRPC <span class="hint">path or x-dumpster-id</span></h3>
+      <pre class="cmd" data-cmd="grpc"></pre>
+
+      <h3>WebSocket <span class="hint">echoes your frames</span></h3>
+      <pre class="cmd" data-cmd="ws"></pre>
+
+      <h3>TCP <span class="hint">id on the first line</span></h3>
+      <pre class="cmd" data-cmd="tcp"></pre>
+
+      <h3>UDP <span class="hint">id in the first 36 bytes</span></h3>
+      <pre class="cmd" data-cmd="udp"></pre>
+
+      <p class="fine">Click any command to copy it.</p>
+    </aside>
+  </main>
+</body>
+</html>

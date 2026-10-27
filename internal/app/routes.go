@@ -15,6 +15,7 @@ func (a *App) routes() *http.ServeMux {
 	mux.HandleFunc("POST /rent", a.handleRent)
 	mux.HandleFunc("GET /healthz", a.handleHealth)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(web.Static))))
+	mux.HandleFunc("GET /d/{id}", a.handleDumpsterPage)
 	mux.HandleFunc("/", a.handleCatchAll)
 	return mux
 }
@@ -29,6 +30,11 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 	sid, sub, ok := splitDumpsterPath(r.URL.Path)
 	if !ok {
 		http.NotFound(w, r)
+		return
+	}
+	if sub == "/_records.json" {
+		r.SetPathValue("id", sid)
+		a.handleRecordsJSON(w, r)
 		return
 	}
 	a.handleHTTPIngest(w, r, sid, sub)

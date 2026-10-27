@@ -189,3 +189,71 @@ func TestHTTPIngestTruncatesHugeBody(t *testing.T) {
 		t.Fatalf("record = %+v", rec.Req)
 	}
 }
+
+func TestRecordsJSONNewestFirst(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	for _, path := range []string{"/one", "/two", "/three"} {
+		res, err := http.Post(a.BaseURL()+"/d/"+id+path, "text/plain", strings.NewReader("hi"))
+		if err != nil {
+			t.Fatalf("POST %s: %v", path, err)
+		}
+		res.Body.Close()
+	}
+
+	res, body := get(t, a.BaseURL()+"/d/"+id+"/_records.json")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var snap struct {
+		Dumpster model.Dumpster `json:"dumpster"`
+		Records  []model.Record `json:"records"`
+	}
+	if err := json.Unmarshal([]byte(body), &snap); err != nil {
+		t.Fatalf("decode snapshot: %v\n%s", err, body)
+	}
+	if snap.Dumpster.ID != id {
+		t.Fatalf("dumpster id = %q, want %q", snap.Dumpster.ID, id)
+	}
+	if len(snap.Records) != 3 {
+		t.Fatalf("records = %d, want 3", len(snap.Records))
+	}
+	if snap.Records[0].Seq != 3 {
+		t.Fatalf("first seq = %d, want 3 (newest first)", snap.Records[0].Seq)
+	}
+}
+
+func TestDebugPageShell(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	res, body := get(t, a.BaseURL()+"/d/"+id)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	for _, want := range []string{
+		`data-id="` + id + `"`,
+		`data-grpc="`,
+		`data-tcp="`,
+		`data-udp="`,
+		`/static/app.js`,
+		`id="records"`,
+		`Rent a dumpster`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("debug page is missing %q", want)
+		}
+	}
+}
+
+func TestDebugPageGoneDumpster(t *testing.T) {
+	a := newTestApp(t)
+	res, body := get(t, a.BaseURL()+"/d/00000000-0000-7000-8000-000000000000")
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", res.StatusCode)
+	}
+	if !strings.Contains(body, "gone") && !strings.Contains(body, "emptied") {
+		t.Fatalf("404 page should explain the dumpster is gone, got:\n%s", body)
+	}
+}

@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/adam/dumpster/internal/id"
 	"github.com/adam/dumpster/internal/store"
 	"github.com/adam/dumpster/internal/web"
 )
@@ -73,4 +76,64 @@ func humanDuration(d time.Duration) string {
 // clientIP is the address used for rate limiting.
 func (a *App) clientIP(r *http.Request) string {
 	return remoteFrom(r, a.cfg.TrustProxy).IP
+}
+
+// handleDumpsterPage renders the shell; the JS fills the list from
+// /_records.json and then from the live socket.
+func (a *App) handleDumpsterPage(w http.ResponseWriter, r *http.Request) {
+	canonical, err := id.Canonical(r.PathValue("id"))
+	if err != nil {
+		a.renderError(w, http.StatusNotFound, "Not a dumpster", "That link is not a dumpster at all.")
+		return
+	}
+	d, ok := a.store.Get(canonical)
+	if !ok {
+		a.renderError(w, http.StatusNotFound, "This dumpster is gone",
+			"It was emptied after "+humanDuration(a.cfg.TTL)+". Rent a new one and keep dumping.")
+		return
+	}
+	a.render(w, http.StatusOK, "debug.html", map[string]any{
+		"ID":        d.ID,
+		"Origin":    a.BaseURL(),
+		"ExpiresAt": d.ExpiresAt.UTC().Format(time.RFC3339),
+		// The gRPC/TCP/UDP listeners do not exist until Phases 6-8, so advertise
+		// the configured ports; Task 31 swaps these for the bound addresses.
+		"PublicGRPC": a.publicAddr(a.cfg.PublicGRPC, a.cfg.GRPCAddr),
+		"PublicTCP":  a.publicAddr(a.cfg.PublicTCP, a.cfg.TCPAddr),
+		"PublicUDP":  a.publicAddr(a.cfg.PublicUDP, a.cfg.UDPAddr),
+	})
+}
+
+// handleRecordsJSON returns the snapshot the page loads before the socket opens,
+// and the thing to curl when you want to read a dumpster from a script.
+func (a *App) handleRecordsJSON(w http.ResponseWriter, r *http.Request) {
+	canonical, err := id.Canonical(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "not a dumpster url", http.StatusNotFound)
+		return
+	}
+	d, ok := a.store.Get(canonical)
+	if !ok {
+		http.Error(w, "unknown or expired dumpster", http.StatusNotFound)
+		return
+	}
+	recs, _ := a.store.List(d.ID)
+	writeJSON(w, http.StatusOK, wsMsg{Type: "snapshot", Dumpster: &d, Records: recs})
+}
+
+// publicAddr renders the address a human types into nc or grpcurl: the explicit
+// override if configured, otherwise the BaseURL host with the bound port.
+func (a *App) publicAddr(explicit, bound string) string {
+	if explicit != "" {
+		return explicit
+	}
+	u, err := url.Parse(a.BaseURL())
+	if err != nil || u.Hostname() == "" {
+		return bound
+	}
+	_, port, err := net.SplitHostPort(bound)
+	if err != nil || port == "" {
+		return bound
+	}
+	return net.JoinHostPort(u.Hostname(), port)
 }
