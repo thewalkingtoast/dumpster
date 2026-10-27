@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/adam/dumpster/internal/hub"
 	"github.com/adam/dumpster/internal/ratelimit"
 	"github.com/adam/dumpster/internal/store"
@@ -22,6 +24,7 @@ import (
 // Addrs are the addresses the listeners actually bound to.
 type Addrs struct {
 	HTTP string
+	GRPC string
 }
 
 // App owns every listener and the state behind them.
@@ -34,6 +37,8 @@ type App struct {
 
 	httpSrv *http.Server
 	httpLis net.Listener
+	grpcSrv *grpc.Server
+	grpcLis net.Listener
 
 	mu      sync.Mutex
 	addrs   Addrs
@@ -70,12 +75,20 @@ func (a *App) Start() error {
 	}
 	a.httpLis = hl
 
+	gl, err := net.Listen("tcp", a.cfg.GRPCAddr)
+	if err != nil {
+		_ = hl.Close()
+		return fmt.Errorf("listen grpc: %w", err)
+	}
+	a.grpcLis = gl
+	a.grpcSrv = a.newGRPCServer()
+
 	base := strings.TrimRight(a.cfg.BaseURL, "/")
 	if base == "" {
 		base = "http://" + hl.Addr().String()
 	}
 	a.mu.Lock()
-	a.addrs = Addrs{HTTP: hl.Addr().String()}
+	a.addrs = Addrs{HTTP: hl.Addr().String(), GRPC: gl.Addr().String()}
 	a.baseURL = base
 	a.mu.Unlock()
 
@@ -89,6 +102,7 @@ func (a *App) Start() error {
 	}
 
 	go func() { _ = a.httpSrv.Serve(hl) }()
+	go func() { _ = a.grpcSrv.Serve(gl) }()
 	go a.reapLoop()
 	return nil
 }
@@ -96,6 +110,9 @@ func (a *App) Start() error {
 // Shutdown stops accepting, drains the HTTP server, and ends the reaper.
 func (a *App) Shutdown(ctx context.Context) error {
 	a.cancel()
+	if a.grpcSrv != nil {
+		a.grpcSrv.GracefulStop()
+	}
 	if a.httpSrv == nil {
 		return nil
 	}
