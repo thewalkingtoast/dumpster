@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/adam/dumpster/internal/web"
 )
@@ -22,8 +23,28 @@ func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleCatchAll grows the debug page and ingest dispatch in later tasks; until
-// then it is an honest 404.
+// handleCatchAll dispatches everything the mux does not claim. Reserved
+// suffixes under a dumpster are added by later phases.
 func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
-	http.NotFound(w, r)
+	sid, sub, ok := splitDumpsterPath(r.URL.Path)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	a.handleHTTPIngest(w, r, sid, sub)
+}
+
+// splitDumpsterPath turns "/d/<id>/a/b" into ("<id>", "/a/b", true).
+func splitDumpsterPath(p string) (sid, sub string, ok bool) {
+	if len(p) < 4 || p[:3] != "/d/" {
+		return "", "", false
+	}
+	tail := p[3:]
+	if i := strings.IndexByte(tail, '/'); i >= 0 {
+		if i == 0 {
+			return "", "", false
+		}
+		return tail[:i], tail[i:], true
+	}
+	return tail, "", true
 }
