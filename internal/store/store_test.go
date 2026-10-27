@@ -69,3 +69,37 @@ func TestAddAssignsSeqTrimsAndListsNewestFirst(t *testing.T) {
 		t.Fatalf("Add on unknown dumpster = %v, want ErrNotFound", err)
 	}
 }
+
+func TestAppendEventCapsAndCountsDrops(t *testing.T) {
+	s := New(Limits{MaxRecords: 5, MaxEvents: 2}, time.Hour)
+	d, _ := s.Create()
+	rec, err := s.Add(d.ID, &model.Record{Kind: model.KindTCP})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := s.AppendEvent(d.ID, rec.Seq, model.Event{Type: "chunk"}); err != nil {
+			t.Fatalf("AppendEvent %d: %v", i, err)
+		}
+	}
+	recs, _ := s.List(d.ID)
+	if len(recs[0].Events) != 2 {
+		t.Fatalf("events = %d, want 2 (MaxEvents)", len(recs[0].Events))
+	}
+	if recs[0].DroppedEvents != 2 {
+		t.Fatalf("dropped = %d, want 2", recs[0].DroppedEvents)
+	}
+}
+
+func TestCloseMarksRecord(t *testing.T) {
+	s := New(Limits{}, time.Hour)
+	d, _ := s.Create()
+	rec, _ := s.Add(d.ID, &model.Record{Kind: model.KindWS})
+	closed, err := s.Close(d.ID, rec.Seq, "closed by peer")
+	if err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if !closed.Closed || closed.CloseNote != "closed by peer" {
+		t.Fatalf("closed = %+v", closed)
+	}
+}

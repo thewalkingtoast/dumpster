@@ -152,3 +152,52 @@ func (s *Store) List(sid string) ([]model.Record, bool) {
 	}
 	return out, true
 }
+
+// AppendEvent appends one event to the record with this Seq and returns the
+// updated record. Once MaxEvents is reached the event is dropped and counted,
+// so the UI can show the loss instead of pretending it never happened.
+func (s *Store) AppendEvent(sid string, seq uint64, ev model.Event) (model.Record, error) {
+	e, ok := s.entry(sid)
+	if !ok {
+		return model.Record{}, ErrNotFound
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	r := e.find(seq)
+	if r == nil {
+		return model.Record{}, ErrNotFound
+	}
+	if len(r.Events) >= s.limits.MaxEvents {
+		r.DroppedEvents++
+		return *r, nil
+	}
+	r.Events = append(r.Events, ev)
+	return *r, nil
+}
+
+// Close marks the record finished and records why.
+func (s *Store) Close(sid string, seq uint64, note string) (model.Record, error) {
+	e, ok := s.entry(sid)
+	if !ok {
+		return model.Record{}, ErrNotFound
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	r := e.find(seq)
+	if r == nil {
+		return model.Record{}, ErrNotFound
+	}
+	r.Closed = true
+	r.CloseNote = note
+	return *r, nil
+}
+
+// find scans newest-first, which is where live protocols look.
+func (e *entry) find(seq uint64) *model.Record {
+	for i := len(e.records) - 1; i >= 0; i-- {
+		if e.records[i].Seq == seq {
+			return e.records[i]
+		}
+	}
+	return nil
+}
