@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -102,5 +103,81 @@ func TestSecurityHeaders(t *testing.T) {
 		if got := res.Header.Get(header); got != want {
 			t.Fatalf("%s = %q, want %q", header, got, want)
 		}
+	}
+}
+
+// noRedirect keeps 303s visible so tests can read the Location header.
+var noRedirect = &http.Client{
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
+func rent(t *testing.T, a *App) string {
+	t.Helper()
+	res, err := noRedirect.Post(a.BaseURL()+"/rent", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatalf("POST /rent: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", res.StatusCode)
+	}
+	loc := res.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/d/") {
+		t.Fatalf("Location = %q, want /d/<id>", loc)
+	}
+	return strings.TrimPrefix(loc, "/d/")
+}
+
+func TestIndexHasExactlyOneCTA(t *testing.T) {
+	a := newTestApp(t)
+	res, body := get(t, a.BaseURL()+"/")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	if got := strings.Count(body, "Rent a dumpster"); got != 1 {
+		t.Fatalf("CTA appears %d times, want exactly 1", got)
+	}
+	if !strings.Contains(body, `action="/rent"`) {
+		t.Fatal("the CTA must post to /rent")
+	}
+}
+
+func TestRentMintsDumpster(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+	if len(id) != 36 {
+		t.Fatalf("id = %q, want a 36-char uuid", id)
+	}
+	if _, ok := a.store.Get(id); !ok {
+		t.Fatalf("store has no dumpster %q after renting", id)
+	}
+}
+
+func TestRentIsRateLimited(t *testing.T) {
+	a := newTestApp(t, func(c *Config) { c.RentPerHour = 2 })
+	rent(t, a)
+	rent(t, a)
+
+	res, err := noRedirect.Post(a.BaseURL()+"/rent", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatalf("third rent: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", res.StatusCode)
+	}
+	if res.Header.Get("Retry-After") == "" {
+		t.Fatal("429 must carry Retry-After")
+	}
+}
+
+func TestStaticServesStylesheet(t *testing.T) {
+	a := newTestApp(t)
+	res, body := get(t, a.BaseURL()+"/static/style.css")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	if !strings.Contains(body, "--accent") {
+		t.Fatal("stylesheet looks empty")
 	}
 }
