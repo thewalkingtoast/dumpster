@@ -22,8 +22,7 @@ NAME="${DEV_CONTAINER:-dumpster-dev}"
 SRC_DIR="${SRC_DIR:-$PWD}"
 PORT_MAP="${PORT_MAP:--p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083}"
 
-log() { printf '[dev] %s
-' "$*" >&2; }
+log() { printf '[dev] %s\n' "$*" >&2; }
 
 if [ "$MODE" = auto ]; then
   if docker info >/dev/null 2>&1; then
