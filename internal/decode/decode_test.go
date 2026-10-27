@@ -1,6 +1,8 @@
 package decode
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/url"
 	"testing"
 )
@@ -52,5 +54,53 @@ func TestTextAndBinary(t *testing.T) {
 	}
 	if got := Body("application/json", nil); got == nil || got.Error == "" {
 		t.Fatalf("empty json body should be an error, got %+v", got)
+	}
+}
+
+func TestMultipartFieldsAndFiles(t *testing.T) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	if err := w.WriteField("colour", "purple"); err != nil {
+		t.Fatalf("WriteField: %v", err)
+	}
+	fw, err := w.CreateFormFile("shot", "x.png")
+	if err != nil {
+		t.Fatalf("CreateFormFile: %v", err)
+	}
+	if _, err := fw.Write([]byte("fake-png-bytes")); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	got := Body(w.FormDataContentType(), buf.Bytes())
+	if got == nil || got.Format != "multipart" {
+		t.Fatalf("got %+v", got)
+	}
+	val, ok := got.Value.(map[string]any)
+	if !ok {
+		t.Fatalf("value type = %T", got.Value)
+	}
+	fields := val["fields"].(map[string][]string)
+	if got := fields["colour"]; len(got) != 1 || got[0] != "purple" {
+		t.Fatalf("fields = %v", fields)
+	}
+	files := val["files"].([]map[string]any)
+	if len(files) != 1 {
+		t.Fatalf("files = %v, want 1", files)
+	}
+	if files[0]["filename"] != "x.png" {
+		t.Fatalf("filename = %v", files[0]["filename"])
+	}
+	if files[0]["size"] != 14 {
+		t.Fatalf("size = %v, want 14", files[0]["size"])
+	}
+}
+
+func TestMultipartMissingBoundary(t *testing.T) {
+	got := Body("multipart/form-data", []byte("garbage"))
+	if got == nil || got.Error == "" {
+		t.Fatalf("want a boundary error, got %+v", got)
 	}
 }
