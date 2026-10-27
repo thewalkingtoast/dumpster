@@ -257,3 +257,19 @@ func TestDebugPageGoneDumpster(t *testing.T) {
 		t.Fatalf("404 page should explain the dumpster is gone, got:\n%s", body)
 	}
 }
+
+func TestStaticServesAppJS(t *testing.T) {
+	a := newTestApp(t)
+	res, body := get(t, a.BaseURL()+"/static/app.js")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	for _, want := range []string{"new WebSocket", "EventSource", "textContent"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("app.js is missing %q", want)
+		}
+	}
+	if strings.Contains(body, "innerHTML") {
+		t.Fatal("app.js must never assign innerHTML with request-derived data")
+	}
+}
