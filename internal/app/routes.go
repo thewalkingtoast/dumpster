@@ -32,6 +32,10 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if sub == "/_live" {
+		a.handleLive(w, r, sid)
+		return
+	}
 	if sub == "/_records.json" {
 		r.SetPathValue("id", sid)
 		a.handleRecordsJSON(w, r)
