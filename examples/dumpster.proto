@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package dumpster;
+
+// Ingest is a service the server does not implement: it is caught by the
+// unknown-service handler and recorded. The shape only exists so grpcurl can
+// build a request; any method name works.
+service Ingest {
+  rpc Anything (Raw) returns (Raw);
+}
+
+message Raw {
+  bytes payload = 1;
+}
