@@ -36,6 +36,10 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 		a.handleSSEIngest(w, r, sid)
 		return
 	}
+	if sub == "/ws" {
+		a.handleWSIngest(w, r, sid)
+		return
+	}
 	if sub == "/_live" {
 		a.handleLive(w, r, sid)
 		return
