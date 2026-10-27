@@ -3,6 +3,7 @@ package store
 
 import (
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -200,4 +201,23 @@ func (e *entry) find(seq uint64) *model.Record {
 		}
 	}
 	return nil
+}
+
+// DeleteExpired removes every dumpster whose TTL has passed and returns the
+// removed ids, sorted, so the caller can close each one's subscribers.
+func (s *Store) DeleteExpired(now time.Time) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var gone []string
+	for sid, e := range s.dumps {
+		e.mu.Lock()
+		expired := !e.dump.ExpiresAt.After(now)
+		e.mu.Unlock()
+		if expired {
+			delete(s.dumps, sid)
+			gone = append(gone, sid)
+		}
+	}
+	sort.Strings(gone)
+	return gone
 }

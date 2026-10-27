@@ -103,3 +103,31 @@ func TestCloseMarksRecord(t *testing.T) {
 		t.Fatalf("closed = %+v", closed)
 	}
 }
+
+func TestExpiryHidesAndDeletes(t *testing.T) {
+	s := New(Limits{MaxRecords: 3}, 50*time.Millisecond)
+	d, err := s.Create()
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, ok := s.Get(d.ID); !ok {
+		t.Fatal("fresh dumpster should be visible")
+	}
+	time.Sleep(70 * time.Millisecond)
+	if _, ok := s.Get(d.ID); ok {
+		t.Fatal("expired dumpster is still visible")
+	}
+	if _, err := s.Add(d.ID, &model.Record{}); err != ErrNotFound {
+		t.Fatalf("Add on expired = %v, want ErrNotFound", err)
+	}
+	gone := s.DeleteExpired(time.Now())
+	if len(gone) != 1 || gone[0] != d.ID {
+		t.Fatalf("DeleteExpired = %v, want [%s]", gone, d.ID)
+	}
+	if s.Len() != 0 {
+		t.Fatalf("Len = %d, want 0", s.Len())
+	}
+	if len(s.DeleteExpired(time.Now())) != 0 {
+		t.Fatal("second DeleteExpired should find nothing")
+	}
+}
