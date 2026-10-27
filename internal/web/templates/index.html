@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dumpster</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="home">
+  <main class="hero">
+    <h1>Dumpster</h1>
+    <p class="lede">Throw requests at it and watch them land. HTTP, gRPC, WebSocket,
+      SSE, TCP, UDP — one link, one live list, twelve hours.</p>
+    <form method="post" action="/rent">
+      <button class="cta" type="submit">Rent a dumpster</button>
+    </form>
+    <p class="fine">{{.Active}} in the yard &middot; every dumpster burns itself after {{.TTL}}
+      &middot; anyone with a link can read it</p>
+  </main>
+</body>
+</html>
