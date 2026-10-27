@@ -1,7 +1,11 @@
 package app
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -103,5 +107,85 @@ func TestHTTPIngestAcceptsEveryMethod(t *testing.T) {
 	}
 	if got := len(records(t, a, id)); got != 4 {
 		t.Fatalf("records = %d, want 4", got)
+	}
+}
+
+func TestHTTPIngestBinaryBodyIsBase64(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	payload := []byte{0x00, 0xff, 0xfe, 0x10}
+	req, _ := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/bin", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	res.Body.Close()
+
+	rec := records(t, a, id)[0]
+	if rec.Req.BodyText != "" {
+		t.Fatalf("binary body leaked into text: %q", rec.Req.BodyText)
+	}
+	want := base64.StdEncoding.EncodeToString(payload)
+	if rec.Req.BodyBase64 != want {
+		t.Fatalf("base64 = %q, want %q", rec.Req.BodyBase64, want)
+	}
+	if rec.Req.Decoded != nil {
+		t.Fatalf("binary body should not decode, got %+v", rec.Req.Decoded)
+	}
+}
+
+func TestHTTPIngestFormBody(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	res, err := http.PostForm(a.BaseURL()+"/d/"+id+"/form", url.Values{"a": {"1"}, "b": {"2", "3"}})
+	if err != nil {
+		t.Fatalf("PostForm: %v", err)
+	}
+	res.Body.Close()
+
+	rec := records(t, a, id)[0]
+	if rec.Req.Decoded == nil || rec.Req.Decoded.Format != "form" {
+		t.Fatalf("decoded = %+v", rec.Req.Decoded)
+	}
+	// Assert the rendered shape, not the Go type: the memory backend keeps
+	// url.Values while the redis backend round-trips through JSON into
+	// map[string]any. Marshalling is the one view both agree on.
+	encoded, err := json.Marshal(rec.Req.Decoded.Value)
+	if err != nil {
+		t.Fatalf("marshal decoded: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"b":["2","3"]`) {
+		t.Fatalf("decoded value = %s, want b to carry two values", encoded)
+	}
+}
+
+func TestHTTPIngestTruncatesHugeBody(t *testing.T) {
+	a := newTestApp(t, func(c *Config) { c.MaxBody = 16 })
+	id := rent(t, a)
+
+	req, _ := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/big",
+		strings.NewReader(strings.Repeat("x", 500)))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer res.Body.Close()
+
+	var ack struct {
+		Received int  `json:"received_bytes"`
+		Trunc    bool `json:"truncated"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&ack); err != nil {
+		t.Fatalf("decode ack: %v", err)
+	}
+	if ack.Received != 16 || !ack.Trunc {
+		t.Fatalf("ack = %+v, want 16 bytes truncated", ack)
+	}
+	rec := records(t, a, id)[0]
+	if !rec.Req.Truncated || rec.Req.BodyBytes != 16 {
+		t.Fatalf("record = %+v", rec.Req)
 	}
 }
