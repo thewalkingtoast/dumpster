@@ -1,0 +1,11 @@
+# build output
+/dumpster
+/bin/
+*.test
+*.out
+
+# local plan/scratch — never shipped
+.hermes/
+
+# macOS
+.DS_Store
