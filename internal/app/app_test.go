@@ -26,6 +26,11 @@ func newTestApp(t *testing.T, tweak ...func(*Config)) *App {
 		t.Fatalf("Start: %v", err)
 	}
 	t.Cleanup(func() {
+		// http.DefaultClient is shared by every test in this package and keeps
+		// idle keep-alive connections to each app's port. Those outlive the
+		// server and keep http.Server.Shutdown waiting for them, so drop them
+		// before draining — otherwise roughly one run in eight times out.
+		http.DefaultClient.CloseIdleConnections()
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		if err := a.Shutdown(ctx); err != nil {
