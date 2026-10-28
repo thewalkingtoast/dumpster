@@ -18,6 +18,7 @@ import (
 
 	"github.com/adam/dumpster/internal/hub"
 	"github.com/adam/dumpster/internal/ratelimit"
+	"github.com/adam/dumpster/internal/redisstore"
 	"github.com/adam/dumpster/internal/store"
 )
 
@@ -41,7 +42,7 @@ type App struct {
 	httpLis net.Listener
 	grpcSrv *grpc.Server
 	grpcLis net.Listener
-	tcpLis net.Listener
+	tcpLis  net.Listener
 	udpConn net.PacketConn
 
 	mu      sync.Mutex
@@ -56,12 +57,7 @@ type App struct {
 func New(cfg Config) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &App{
-		cfg: cfg,
-		store: store.New(store.Limits{
-			MaxRecords:   cfg.MaxRecords,
-			MaxEvents:    cfg.MaxEvents,
-			MaxDumpsters: cfg.MaxDumpsters,
-		}, cfg.TTL),
+		cfg:    cfg,
 		hub:    hub.New(128),
 		rl:     ratelimit.New(cfg.RentPerHour, time.Hour),
 		log:    slog.Default(),
@@ -73,6 +69,12 @@ func New(cfg Config) *App {
 // Start binds the HTTP listener and serves it. It returns once the port is
 // bound, so callers can read Addrs immediately.
 func (a *App) Start() error {
+	db, err := a.openStore()
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	a.store = db
+
 	hl, err := net.Listen("tcp", a.cfg.HTTPAddr)
 	if err != nil {
 		return fmt.Errorf("listen http: %w", err)
@@ -138,6 +140,9 @@ func (a *App) Start() error {
 // Shutdown stops accepting, drains the HTTP server, and ends the reaper.
 func (a *App) Shutdown(ctx context.Context) error {
 	a.cancel()
+	if a.store != nil {
+		_ = a.store.Shutdown()
+	}
 	if a.grpcSrv != nil {
 		a.grpcSrv.GracefulStop()
 	}
@@ -172,3 +177,22 @@ func (a *App) BaseURL() string {
 
 // Log exposes the app logger to handlers.
 func (a *App) Log() *slog.Logger { return a.log }
+
+// openStore picks the backend. Redis is opt-in, so the default build needs no
+// external service at all.
+func (a *App) openStore() (store.Backend, error) {
+	if a.cfg.RedisURL == "" {
+		return store.New(store.Limits{
+			MaxRecords:   a.cfg.MaxRecords,
+			MaxEvents:    a.cfg.MaxEvents,
+			MaxDumpsters: a.cfg.MaxDumpsters,
+		}, a.cfg.TTL), nil
+	}
+	return redisstore.New(a.ctx, redisstore.Options{
+		URL:          a.cfg.RedisURL,
+		TTL:          a.cfg.TTL,
+		MaxRecords:   a.cfg.MaxRecords,
+		MaxEvents:    a.cfg.MaxEvents,
+		MaxDumpsters: a.cfg.MaxDumpsters,
+	})
+}

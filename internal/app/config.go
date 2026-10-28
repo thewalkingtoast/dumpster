@@ -17,6 +17,14 @@ type Config struct {
 
 	BaseURL string // external origin for links, e.g. https://dumpster.example
 
+	// RedisURL, when set, makes the app use Redis instead of memory. Both
+	// backends implement store.Backend, so nothing else changes.
+	RedisURL string
+
+	// InstanceID identifies this process in the pub/sub relay, so it can ignore
+	// its own messages. Generated per process when empty.
+	InstanceID string
+
 	PublicGRPC string // what a human should type; defaults to BaseURL host + port
 	PublicTCP  string
 	PublicUDP  string
@@ -70,6 +78,12 @@ func (c Config) FromEnv() Config {
 	}
 	if v := os.Getenv("DUMPSTER_BASE_URL"); v != "" {
 		c.BaseURL = v
+	}
+	if v := os.Getenv("DUMPSTER_REDIS_URL"); v != "" {
+		c.RedisURL = v
+	}
+	if v := os.Getenv("DUMPSTER_INSTANCE_ID"); v != "" {
+		c.InstanceID = v
 	}
 	if v := os.Getenv("DUMPSTER_PUBLIC_GRPC"); v != "" {
 		c.PublicGRPC = v

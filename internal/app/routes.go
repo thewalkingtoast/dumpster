@@ -21,6 +21,15 @@ func (a *App) routes() *http.ServeMux {
 }
 
 func (a *App) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if a.store != nil {
+		if err := a.store.Health(); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"ok":    false,
+				"error": err.Error(),
+			})
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

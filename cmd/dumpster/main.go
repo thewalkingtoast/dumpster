@@ -27,6 +27,7 @@ func main() {
 	flag.DurationVar(&cfg.TTL, "ttl", cfg.TTL, "how long a dumpster lives")
 	flag.IntVar(&cfg.MaxBody, "max-body", cfg.MaxBody, "bytes of body kept per request")
 	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "trust X-Forwarded-For for the reported client ip")
+	flag.StringVar(&cfg.RedisURL, "redis", cfg.RedisURL, "redis url; empty uses in-memory storage")
 	flag.Parse()
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
