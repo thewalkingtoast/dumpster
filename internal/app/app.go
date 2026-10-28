@@ -25,6 +25,7 @@ import (
 type Addrs struct {
 	HTTP string
 	GRPC string
+	TCP  string
 }
 
 // App owns every listener and the state behind them.
@@ -39,6 +40,7 @@ type App struct {
 	httpLis net.Listener
 	grpcSrv *grpc.Server
 	grpcLis net.Listener
+	tcpLis net.Listener
 
 	mu      sync.Mutex
 	addrs   Addrs
@@ -83,12 +85,20 @@ func (a *App) Start() error {
 	a.grpcLis = gl
 	a.grpcSrv = a.newGRPCServer()
 
+	tl, err := net.Listen("tcp", a.cfg.TCPAddr)
+	if err != nil {
+		_ = hl.Close()
+		_ = gl.Close()
+		return fmt.Errorf("listen tcp: %w", err)
+	}
+	a.tcpLis = tl
+
 	base := strings.TrimRight(a.cfg.BaseURL, "/")
 	if base == "" {
 		base = "http://" + hl.Addr().String()
 	}
 	a.mu.Lock()
-	a.addrs = Addrs{HTTP: hl.Addr().String(), GRPC: gl.Addr().String()}
+	a.addrs = Addrs{HTTP: hl.Addr().String(), GRPC: gl.Addr().String(), TCP: tl.Addr().String()}
 	a.baseURL = base
 	a.mu.Unlock()
 
@@ -103,6 +113,7 @@ func (a *App) Start() error {
 
 	go func() { _ = a.httpSrv.Serve(hl) }()
 	go func() { _ = a.grpcSrv.Serve(gl) }()
+	go a.acceptTCP(tl)
 	go a.reapLoop()
 	return nil
 }
@@ -112,6 +123,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 	a.cancel()
 	if a.grpcSrv != nil {
 		a.grpcSrv.GracefulStop()
+	}
+	if a.tcpLis != nil {
+		_ = a.tcpLis.Close()
 	}
 	if a.httpSrv == nil {
 		return nil
