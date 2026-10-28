@@ -141,10 +141,11 @@
     function block(label, value) {
       if (value === null || value === undefined || value === '') return;
       if (typeof value === 'object' && !Object.keys(value).length) return;
-      wrap.append(
-        el('h4', { text: label }),
-        el('pre', { text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) })
-      );
+      const body = el('pre', {
+        text: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
+      });
+      wireCopyable(body, label);
+      wrap.append(el('h4', { text: label }), body);
     }
 
     // The row shows only "3s ago", so the exact instant lives here: expand the
@@ -331,19 +332,49 @@
     }
   }
 
-  function wireCopy() {
-    for (const pre of document.querySelectorAll('pre.cmd')) {
-      pre.title = 'click to copy';
-      pre.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(pre.textContent);
-          pre.classList.add('copied');
-          setTimeout(() => pre.classList.remove('copied'), 600);
-        } catch {
-          // clipboard needs a secure context; the text is selectable regardless
-        }
-      });
+  // navigator.clipboard only exists in a secure context, and this app is usually
+  // reached over plain http on a LAN address — precisely where a phone throws the
+  // API away. The textarea trick still works there, so try it rather than leaving
+  // a tap looking broken.
+  function legacyCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.append(ta);
+    ta.select();
+    try {
+      if (document.execCommand('copy')) done();
+    } catch {
+      /* nothing sane left to try */
     }
+    ta.remove();
+  }
+
+  function copyText(text, node) {
+    if (!text) return;
+    const flash = () => {
+      node.classList.add('copied');
+      setTimeout(() => node.classList.remove('copied'), 700);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(flash, () => legacyCopy(text, flash));
+      return;
+    }
+    legacyCopy(text, flash);
+  }
+
+  // Copies the block's own text: pretty-printed JSON stays pretty-printed, and a
+  // raw body stays raw.
+  function wireCopyable(node, label) {
+    if (!node) return;
+    if (label) node.title = 'click to copy ' + label;
+    node.addEventListener('click', () => copyText(node.textContent, node));
+  }
+
+  function wireCopy() {
+    for (const pre of document.querySelectorAll('pre.cmd')) wireCopyable(pre, '');
   }
 
   // The button emits; it does not listen. Opening the EventSource from the page

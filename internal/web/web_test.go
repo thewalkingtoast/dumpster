@@ -167,3 +167,37 @@ func TestRowsShowOnlyTheAgeAndDetailKeepsTheInstant(t *testing.T) {
 		t.Fatal("the row lost the timestamp its age is derived from")
 	}
 }
+
+// The detail pane is where the payload actually lives, so its blocks copy on a
+// tap: the same affordance the command blocks have, and the same fallback for
+// plain-http origins where navigator.clipboard does not exist.
+func TestDetailBlocksAreCopyable(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(js)
+	for _, want := range []struct{ needle, why string }{
+		{"wireCopyable(body, label)", "detail blocks are not wired for copying"},
+		{"node.title = 'click to copy ' + label", "a block does not say what tapping it does"},
+		{"copyText(node.textContent, node)", "the block does not copy its own text"},
+		{"function legacyCopy", "no fallback: plain-http LAN is not a secure context"},
+		{"wireCopyable(pre, '')", "the command blocks no longer share the copy path"},
+	} {
+		if !strings.Contains(src, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+
+	css, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	sheet := string(css)
+	if !strings.Contains(sheet, ".detail pre{") || !strings.Contains(sheet, "cursor:copy") {
+		t.Fatal("detail blocks give no copy affordance")
+	}
+	if !strings.Contains(sheet, ".detail pre.copied") {
+		t.Fatal("a copied block gives no visual confirmation")
+	}
+}

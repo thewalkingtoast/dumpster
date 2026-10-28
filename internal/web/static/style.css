@@ -65,6 +65,12 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
 .when{color:var(--dim);font-size:.72rem;font-family:var(--mono);white-space:nowrap}
 .age{font-variant-numeric:tabular-nums}
 .detail{border-top:1px solid var(--line);padding:12px 16px 18px;font-size:.82rem}
+.detail pre{
+  border:1px solid transparent;border-radius:6px;
+  cursor:copy;transition:border-color .15s ease,color .15s ease;
+}
+.detail pre:hover{border-color:var(--line)}
+.detail pre.copied{border-color:var(--sage);color:var(--sage)}
 .detail h4{
   margin:16px 0 6px;font-size:.66rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);
 }
