@@ -87,11 +87,13 @@ func TestSSEListenerReceivesEmittedEvents(t *testing.T) {
 		t.Fatalf("emit status = %d, want 200", postRes.StatusCode)
 	}
 
+	// The five welcome events land first now; the publisher's frames are the ones
+	// carrying a payload, so skip past the burst.
 	sc := bufio.NewScanner(res.Body)
 	var data []string
 	for len(data) < 3 && sc.Scan() {
 		line := sc.Text()
-		if strings.HasPrefix(line, "data: ") {
+		if strings.HasPrefix(line, "data: ") && strings.Contains(line, `"payload"`) {
 			data = append(data, strings.TrimPrefix(line, "data: "))
 		}
 	}
@@ -109,7 +111,7 @@ func TestSSEListenerReceivesEmittedEvents(t *testing.T) {
 	for time.Now().Before(deadline) {
 		for i := range records(t, a, id) {
 			rec := records(t, a, id)[i]
-			if rec.Meta["role"] == "listener" && rec.Closed && len(rec.Events) == 3 {
+			if rec.Meta["role"] == "listener" && rec.Closed && len(rec.Events) == sseWelcomeEvents+3 {
 				listener = &rec
 			}
 		}
@@ -119,11 +121,18 @@ func TestSSEListenerReceivesEmittedEvents(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if listener == nil {
-		t.Fatalf("listener record did not close with 3 events: %+v", records(t, a, id))
+		t.Fatalf("listener record did not close with %d events: %+v", sseWelcomeEvents+3, records(t, a, id))
 	}
-	for _, ev := range listener.Events {
+	for i, ev := range listener.Events {
 		if ev.Dir != "out" {
-			t.Fatalf("event direction = %q, want out (the dumpster sent it)", ev.Dir)
+			t.Fatalf("event %d direction = %q, want out (the dumpster sent it)", i, ev.Dir)
+		}
+		want := sseDefaultEvent
+		if i >= sseWelcomeEvents {
+			want = "poke"
+		}
+		if ev.Type != want {
+			t.Fatalf("event %d type = %q, want %q", i, ev.Type, want)
 		}
 	}
 }
@@ -180,7 +189,61 @@ func TestSSEListenerKeepsAnIdleStreamWarm(t *testing.T) {
 	if keepAlives < 3 {
 		t.Fatalf("keep-alives = %d, want at least 3 on an idle stream", keepAlives)
 	}
-	if events != 0 {
-		t.Fatalf("idle stream delivered %d events, want none", events)
+	// Connecting is no longer silent: the welcome burst arrives, then nothing but
+	// keep-alives. An idle stream must not invent extra events.
+	if events != sseWelcomeEvents {
+		t.Fatalf("stream delivered %d events, want only the %d welcome ones", events, sseWelcomeEvents)
 	}
+}
+
+// Connecting is the whole demonstration now: five events arrive unprompted, and
+// each is recorded on the listener's own row.
+func TestSSEListenerSendsFiveEventsOnConnect(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.BaseURL()+"/d/"+id+"/sse", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := (&http.Client{}).Do(req)
+	if err != nil {
+		t.Fatalf("GET sse: %v", err)
+	}
+
+	sc := bufio.NewScanner(res.Body)
+	events := 0
+	for events < sseWelcomeEvents && sc.Scan() {
+		if strings.HasPrefix(sc.Text(), "event: ") {
+			events++
+		}
+	}
+	res.Body.Close()
+	if events != sseWelcomeEvents {
+		t.Fatalf("received %d events on connect, want %d", events, sseWelcomeEvents)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rec := range records(t, a, id) {
+			if rec.Kind != model.KindSSE {
+				continue
+			}
+			if rec.Meta["role"] != "listener" {
+				continue
+			}
+			if len(rec.Events) >= sseWelcomeEvents {
+				for i, ev := range rec.Events[:sseWelcomeEvents] {
+					if ev.Dir != "out" || ev.Type != sseDefaultEvent {
+						t.Fatalf("event %d = %s/%s, want out/%s", i, ev.Dir, ev.Type, sseDefaultEvent)
+					}
+				}
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("the listener row never recorded %d events", sseWelcomeEvents)
 }

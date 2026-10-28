@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"time"
 	"unicode/utf8"
@@ -71,6 +73,11 @@ func (a *App) handleWSIngest(w http.ResponseWriter, r *http.Request, sid string)
 	}
 
 	ctx := r.Context()
+	// Five pings as soon as the socket opens, each recorded like a frame. Ping
+	// waits for the pong, and the pong is read inside Read — which is why this
+	// runs beside the read loop rather than before it.
+	go a.welcomePings(ctx, c, d.ID, stored.Seq)
+
 	for {
 		typ, data, err := c.Read(ctx)
 		if err != nil {
@@ -134,4 +141,34 @@ func truncateText(s string, max int) string {
 		}
 	}
 	return s[:max]
+}
+
+const (
+	welcomePings   = 5
+	welcomePingGap = 250 * time.Millisecond
+)
+
+// welcomePings proves the socket works in both directions without the client
+// sending anything. It is safe beside the read loop: the library allows every
+// method to be called concurrently except Read itself.
+func (a *App) welcomePings(ctx context.Context, c *websocket.Conn, id string, seq uint64) {
+	for i := 1; i <= welcomePings; i++ {
+		pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		err := c.Ping(pingCtx)
+		cancel()
+		if err != nil {
+			return // the peer is gone or pong-less; the read loop will notice
+		}
+		note := fmt.Sprintf("ping %d of %d", i, welcomePings)
+		if updated, err := a.store.AppendEvent(id, seq, model.Event{
+			At: time.Now(), Dir: "out", Type: "ping", Bytes: 0, Text: note,
+		}); err == nil {
+			a.publishUpdate(id, &updated)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(welcomePingGap):
+		}
+	}
 }

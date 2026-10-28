@@ -272,10 +272,15 @@ func TestStaticServesAppJS(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", res.StatusCode)
 	}
-	for _, want := range []string{"new WebSocket", "EventSource", "textContent"} {
+	for _, want := range []string{"new WebSocket", "textContent"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("app.js is missing %q", want)
 		}
+	}
+	// The dashboard follows the dumpster over the socket. An EventSource would make
+	// the page a second listener and duplicate every event it renders.
+	if strings.Contains(body, "new EventSource") {
+		t.Fatal("app.js opens an EventSource; the page must not listen to its own dumpster")
 	}
 	if strings.Contains(body, "innerHTML") {
 		t.Fatal("app.js must never assign innerHTML with request-derived data")

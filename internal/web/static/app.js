@@ -4,7 +4,6 @@
   const body = document.body;
   const ID = body.dataset.id;
   const ORIGIN = body.dataset.origin;
-  const CSRF = body.dataset.csrf || '';
   const GRPC = body.dataset.grpc;
   // One switch from the server decides both: gRPC is encrypted and the socket
   // example says wss when the app is served over TLS, never half of each.
@@ -405,42 +404,8 @@
     for (const pre of document.querySelectorAll('pre.cmd')) wireCopyable(pre, '');
   }
 
-  // The button emits; it does not listen. Opening the EventSource from the page
-  // would make the dashboard its own listener and duplicate every row it renders.
-  function wireSSE() {
-    const button = document.getElementById('btn-sse');
-    if (!button) return;
-    const idle = 'Send 5 SSE events';
-    let busy = false;
-
-    button.addEventListener('click', async () => {
-      if (busy) return;
-      busy = true;
-      button.disabled = true;
-      try {
-        const res = await fetch(ORIGIN + '/d/' + ID + '/sse/emit?count=5', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': CSRF },
-        });
-        const body = await res.json();
-        const n = body.listeners || 0;
-        button.textContent = n
-          ? 'sent to ' + n + (n === 1 ? ' listener' : ' listeners')
-          : 'sent — nobody listening';
-      } catch {
-        button.textContent = 'send failed';
-      }
-      setTimeout(() => {
-        button.textContent = idle;
-        button.disabled = false;
-        busy = false;
-      }, 2000);
-    });
-  }
-
   renderCommands();
   wireCopy();
-  wireSSE();
   startAgeTicker();
   connect();
 })();

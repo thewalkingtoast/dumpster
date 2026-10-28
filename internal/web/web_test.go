@@ -111,19 +111,24 @@ func TestAgeUsesTabularFigures(t *testing.T) {
 	}
 }
 
-// SSE is the one protocol the dumpster publishes, so the page has two jobs:
-// the command listens, the button sends. Making the button open an EventSource
-// would turn the dashboard into its own listener and duplicate every row.
-func TestSSESplitsListeningFromSending(t *testing.T) {
+// SSE and WebSocket now demonstrate themselves: connecting is enough, so the page
+// must not offer a button that sends events, and must say what arrives on connect.
+func TestConnectIsTheDemonstration(t *testing.T) {
 	html, err := fs.ReadFile(templateFS, "templates/debug.html")
 	if err != nil {
 		t.Fatalf("read debug.html: %v", err)
 	}
 	page := string(html)
+
+	for _, gone := range []string{"Send 5 SSE events", `id="btn-sse"`} {
+		if strings.Contains(page, gone) {
+			t.Fatalf("the page still offers %q, but connecting now sends the events", gone)
+		}
+	}
 	for _, want := range []struct{ needle, why string }{
-		{"Send 5 SSE events", "the button does not say it sends events"},
-		{"listener", "the page does not explain that the command is the listener"},
-		{"Run the command first", "the page does not say which half to run first"},
+		{"sends five events on connect", "the SSE heading does not say what happens on connect"},
+		{"Five events", "the SSE hint does not mention the burst"},
+		{"pings five times on connect", "the WebSocket hint does not mention the pings"},
 	} {
 		if !strings.Contains(page, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
@@ -134,21 +139,13 @@ func TestSSESplitsListeningFromSending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read app.js: %v", err)
 	}
-	src := string(js)
-	if !strings.Contains(src, "/sse/emit?count=5") {
-		t.Fatal("the button does not POST an emission")
-	}
-	if strings.Contains(src, "new EventSource") {
-		t.Fatal("the page still opens its own SSE listener, which would duplicate its own rows")
-	}
-	if strings.Contains(src, "interval_ms") {
-		t.Fatal("the stale eager-stream parameter is still in the command")
+	if strings.Contains(string(js), "sse/emit") {
+		t.Fatal("app.js still posts to sse/emit; nothing on the page should publish")
 	}
 }
 
-// The row is a scanning surface, not a log line: it shows how long ago something
-// landed, and the exact instant waits in the expanded detail rather than being
-// dropped altogether.
+// Ages must tick without re-rendering rows: a full rebuild every second would
+// fight the live socket and collapse whatever row the reader has open.
 func TestRowsShowOnlyTheAgeAndDetailKeepsTheInstant(t *testing.T) {
 	js, err := fs.ReadFile(Static, "app.js")
 	if err != nil {

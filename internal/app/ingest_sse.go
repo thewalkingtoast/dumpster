@@ -22,6 +22,14 @@ import (
 // was itself the trigger, so the page button and the curl command were the same
 // request and there was no way to listen.
 
+// sseDefaultEvent is the event name used when a publisher does not choose one.
+const sseDefaultEvent = "dump"
+
+// sseWelcomeEvents is how many events a listener receives the moment it connects.
+// Connecting is the demonstration: `curl -N` shows something without a second
+// command, which is what the docs promise.
+const sseWelcomeEvents = 5
+
 // sseMessage is what an emission publishes through the hub. Listeners share that
 // channel with dashboard bookkeeping, so they filter on Type.
 type sseMessage struct {
@@ -81,6 +89,34 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 	_, _ = io.WriteString(w, ": listening\n\n")
 	if canFlush {
 		flusher.Flush()
+	}
+
+	// Five events, immediately, recorded against this listener's own row. They go
+	// straight to this connection rather than through the hub: a listener should
+	// not replay another listener's welcome burst.
+	for i := 1; i <= sseWelcomeEvents; i++ {
+		body, err := json.Marshal(map[string]any{
+			"dumpster": d.ID,
+			"event":    i,
+			"of":       sseWelcomeEvents,
+			"at":       time.Now().UTC().Format(time.RFC3339Nano),
+		})
+		if err != nil {
+			break
+		}
+		frame := fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", i, sseDefaultEvent, string(body))
+		if _, err := io.WriteString(w, frame); err != nil {
+			a.closeRecord(d.ID, stored.Seq, "client write failed")
+			return
+		}
+		if canFlush {
+			flusher.Flush()
+		}
+		if updated, err := a.store.AppendEvent(d.ID, stored.Seq, model.Event{
+			At: time.Now(), Dir: "out", Type: sseDefaultEvent, Bytes: len(body), Text: string(body),
+		}); err == nil {
+			a.publishUpdate(d.ID, &updated)
+		}
 	}
 
 	keepAlive := time.NewTicker(a.sseKeepAlive)
@@ -153,7 +189,7 @@ func (a *App) handleSSEEmit(w http.ResponseWriter, r *http.Request, sid string) 
 	count := clampInt(intQuery(r, "count", 5), 1, maxEvents)
 	eventName := r.URL.Query().Get("event")
 	if eventName == "" {
-		eventName = "dump"
+		eventName = sseDefaultEvent
 	}
 	note := r.URL.Query().Get("data")
 	listeners := a.hub.Subscribers(d.ID)
