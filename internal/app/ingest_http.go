@@ -59,7 +59,7 @@ func (a *App) ingestHTTP(w http.ResponseWriter, r *http.Request, sid, sub string
 
 // recordHTTP builds, stores and broadcasts one HTTP record.
 func (a *App) recordHTTP(d model.Dumpster, r *http.Request, sub string, start time.Time, body []byte, truncated bool, bodyUS int64) (uint64, error) {
-	req := requestEnvelope(r, subOrRoot(sub))
+	req := a.requestEnvelope(r, subOrRoot(sub))
 	req.Truncated = truncated
 	fillBody(req, r.Header.Get("Content-Type"), body)
 

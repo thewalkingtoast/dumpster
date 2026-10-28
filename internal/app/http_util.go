@@ -132,6 +132,25 @@ func readBody(body io.Reader, max int) (data []byte, truncated bool) {
 // remoteFrom describes the caller. With trustProxy set, the first
 // X-Forwarded-For hop becomes the reported IP, but the raw socket address and
 // the header itself are always preserved.
+// clientTLS reports whether the *client's* leg used TLS, and how we know. Behind a
+// proxy that terminates TLS the app itself sees plaintext, so r.TLS is nil even
+// for a wss:// or https:// client; nginx then says what the client used in
+// X-Forwarded-Proto. That header is believed only under -trust-proxy, for the
+// same reason X-Forwarded-For is: without a proxy in front it is a client's own
+// claim, and a client can claim anything.
+func clientTLS(r *http.Request, trustProxy bool) (bool, string) {
+	if r.TLS != nil {
+		return true, "direct"
+	}
+	if trustProxy {
+		proto := strings.TrimSpace(strings.SplitN(r.Header.Get("X-Forwarded-Proto"), ",", 2)[0])
+		if strings.EqualFold(proto, "https") {
+			return true, "proxy"
+		}
+	}
+	return false, ""
+}
+
 func remoteFrom(r *http.Request, trustProxy, trustRealIP bool) model.Remote {
 	rem := model.Remote{Addr: r.RemoteAddr, IP: r.RemoteAddr}
 	if host, port, err := net.SplitHostPort(r.RemoteAddr); err == nil {
@@ -140,9 +159,11 @@ func remoteFrom(r *http.Request, trustProxy, trustRealIP bool) model.Remote {
 			rem.Port = p
 		}
 	}
-	if r.TLS != nil {
-		rem.TLS = true
-		rem.TLSSNI = r.TLS.ServerName
+	if tls, via := clientTLS(r, trustProxy); tls {
+		rem.TLS, rem.TLSVia = true, via
+		if r.TLS != nil {
+			rem.TLSSNI = r.TLS.ServerName
+		}
 	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		rem.Forwarded = xff
@@ -208,13 +229,17 @@ func fillBody(req *model.Request, contentType string, body []byte) {
 
 // requestEnvelope builds the shared Request from an HTTP request, cloning the
 // header map because the record outlives the request.
-func requestEnvelope(r *http.Request, subpath string) *model.Request {
+func (a *App) requestEnvelope(r *http.Request, subpath string) *model.Request {
 	headers := make(map[string][]string, len(r.Header))
 	for k, v := range r.Header {
 		headers[k] = append([]string(nil), v...)
 	}
+	scheme := "http"
+	if tls, _ := clientTLS(r, a.cfg.TrustProxy); tls {
+		scheme = "https"
+	}
 	return &model.Request{
-		Protocol:    "http",
+		Protocol:    scheme,
 		Method:      r.Method,
 		Path:        r.URL.Path,
 		Subpath:     subpath,

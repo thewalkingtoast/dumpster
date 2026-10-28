@@ -75,7 +75,7 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 		Kind:       model.KindSSE,
 		ReceivedAt: start,
 		Remote:     remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP),
-		Req:        requestEnvelope(r, "/sse"),
+		Req:        a.requestEnvelope(r, "/sse"),
 		Timing:     timingFrom(r, start),
 		Meta:       map[string]string{"role": "listener"},
 	}

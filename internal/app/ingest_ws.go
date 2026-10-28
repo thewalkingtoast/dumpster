@@ -45,7 +45,7 @@ func (a *App) handleWSIngest(w http.ResponseWriter, r *http.Request, sid string)
 		Kind:       model.KindWS,
 		ReceivedAt: start,
 		Remote:     remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP),
-		Req:        requestEnvelope(r, "/ws"),
+		Req:        a.requestEnvelope(r, "/ws"),
 		Timing:     timingFrom(r, start),
 		Meta:       map[string]string{"subprotocol": c.Subprotocol()},
 	}

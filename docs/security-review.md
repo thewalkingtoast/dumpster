@@ -236,7 +236,9 @@ $ GET /d/<id>/sse (two listeners open)   → the second connection's burst reach
    feature. **If authentication is ever added, this becomes CSWSH and must be
    pinned to an origin.**
 4. **`-trust-proxy` / `-trust-real-ip` are spoofable** when the app is reachable
-   directly. Both default off; the README explains when each is correct and why
+   directly. The switch also decides whether `X-Forwarded-Proto` is believed for
+   the recorded scheme, for the same reason: it is the proxy's claim about the
+   client's leg, and only a proxy you control should be believed about it. Both default off; the README explains when each is correct and why
    an appending proxy must not be trusted.
 5. **`/healthz` returns the backend error string** on failure (503). With Redis
    this can name a host and port. Judged acceptable for an ops endpoint on a

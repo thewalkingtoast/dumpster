@@ -190,7 +190,7 @@ caller who opens thousands at once is only stopped by the count.
 
 | Flag | Env | Default | Meaning |
 | --- | --- | --- | --- |
-| `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off | believe the first `X-Forwarded-For` hop |
+| `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off | believe the first `X-Forwarded-For` hop, and `X-Forwarded-Proto` for the recorded scheme |
 | `-trust-real-ip` | `DUMPSTER_TRUST_REAL_IP` | off | believe `X-Real-IP` |
 
 Both are off by default because both are spoofable if the app is reachable
@@ -251,6 +251,9 @@ carry them.
    *appends* (the common `$proxy_add_x_forwarded_for`), do **not** trust it — a
    client can prepend its own hop. With nginx, either overwrite it or set
    `X-Real-IP $remote_addr` and use `-trust-real-ip`.
+   With `-trust-proxy` on, `X-Forwarded-Proto: https` also marks the record as
+   TLS (`"tls": true, "tls_via": "proxy"`) — otherwise a `wss://` client behind
+   nginx looks like plaintext, because the app only sees the proxy's hop.
 5. **Publish UDP properly.** `8083:8083/udp`. See the warning above; this is the
    single most common "it doesn't work" report.
 6. **Keep the container non-root and the certificate readable.** The image runs

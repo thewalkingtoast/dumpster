@@ -50,6 +50,7 @@ type Remote struct {
 	IP        string `json:"ip"`
 	Port      int    `json:"port"`
 	TLS       bool   `json:"tls"`
+	TLSVia    string `json:"tls_via,omitempty"` // "direct" (app terminated) or "proxy" (X-Forwarded-Proto)
 	TLSSNI    string `json:"tls_sni,omitempty"`
 	Forwarded string `json:"forwarded_for,omitempty"` // raw X-Forwarded-For, always
 	RealIP    string `json:"x_real_ip,omitempty"`     // raw X-Real-IP, always
