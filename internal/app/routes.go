@@ -15,7 +15,7 @@ func (a *App) routes() *http.ServeMux {
 	mux.HandleFunc("GET /{$}", a.handleIndex)
 	mux.HandleFunc("POST /rent", a.handleRent)
 	mux.HandleFunc("GET /healthz", a.handleHealth)
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(web.Static))))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler()))
 	// Browsers ask for /favicon.ico whether or not the page links it, and the tab
 	// icon is the only branding most people ever see.
 	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
@@ -103,4 +103,23 @@ func serveEmbedded(w http.ResponseWriter, name, contentType string) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+// staticHandler serves the embedded assets with a cache policy that depends on
+// whether the request carries a build stamp.
+//
+// A stamped URL ("?v=<sha>") cannot go stale, because a new build mints a new URL:
+// it is cached for a year and marked immutable. An unstamped one (someone typing
+// the path, or a page served by an older build) must revalidate instead, or the
+// browser invents its own freshness window and serves last week's stylesheet.
+func staticHandler() http.Handler {
+	files := http.FileServer(http.FS(web.Static))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		files.ServeHTTP(w, r)
+	})
 }

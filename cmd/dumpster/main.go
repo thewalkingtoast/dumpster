@@ -47,6 +47,7 @@ func main() {
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
+	cfg.Version = version
 	a := app.New(cfg)
 	if err := a.Start(); err != nil {
 		slog.Error("start failed", "err", err)

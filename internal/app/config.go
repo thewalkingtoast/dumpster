@@ -34,6 +34,11 @@ type Config struct {
 	// page advertises wss://, so the two can never disagree.
 	TLS bool
 
+	// Version is the build stamp, set by the linker rather than by flag or env.
+	// It versions every /static/ URL so caches cannot pair a new page with an old
+	// stylesheet.
+	Version string
+
 	// CSRFSecret makes token signing keys shared and stable. Empty means a random
 	// per-process secret: tokens die on restart and instances disagree.
 	CSRFSecret string

@@ -110,6 +110,9 @@ appear twice.
 - Every row shows protocol, time to the millisecond, and a self-updating age.
 - Click any detail block to copy it. Works on plain HTTP too, where
   `navigator.clipboard` is unavailable and a textarea fallback is used.
+- A dark/light switch sits in the header. The choice is remembered per browser
+  and applied before the first paint (a blocking `theme.js`, since the CSP forbids
+  inline scripts), so there is no flash of the wrong palette.
 - Each protocol's copy-paste example is generated for *this* dumpster and follows
   your TLS setting (`wss://` vs `ws://`, `grpcurl -insecure` vs `-plaintext`).
 
@@ -263,6 +266,12 @@ Cloudflare edge IP and your per-IP limits throttle the whole internet as a singl
 caller. Cloudflare's idle timeout would also cut silent SSE streams.
 
 Health check: `GET /healthz` → `200 {"ok":true}`, or `503` with a reason.
+
+Static assets are requested as `/static/app.js?v=<build>`, and the build stamp is
+compiled in. That makes the URLs immutable, so they are served
+`Cache-Control: public, max-age=31536000, immutable` and a new binary can never be
+paired with the previous stylesheet. Requests without a stamp revalidate
+(`no-cache`) rather than being trusted.
 
 ## Troubleshooting
 

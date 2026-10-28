@@ -1,6 +1,9 @@
 :root{
   --bg:#0c0b10; --panel:#15131c; --ink:#e8e4ef; --muted:#9a93ab; --dim:#6d6680;
   --line:#2a2536; --accent:#b48ce0; --sage:#8fbf9f; --warn:#e2a04a; --err:#d9705f;
+  --wall-hi:#1b1628; --bar:rgba(12,11,16,.72); --hover:#191623;
+  --pre:#100e17; --badge:#211d2e; --cta-ink:#150f1f; --open:#3a3350;
+  --banner-bg:#221317; --banner-ink:#f0c9c2;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 }
@@ -8,7 +11,7 @@
 html{font-size:132%}
 html,body{margin:0;min-height:100%}
 body{
-  background:radial-gradient(1200px 620px at 50% -12%,#1b1628 0%,var(--bg) 62%);
+  background:radial-gradient(1200px 620px at 50% -12%,var(--wall-hi) 0%,var(--bg) 62%);
   color:var(--ink);font:1rem/1.55 var(--sans);
 }
 a{color:var(--accent)}
@@ -19,7 +22,7 @@ h1{font-size:clamp(2.1rem,5.5vw,3.2rem);line-height:1.05;margin:0 0 .45em;letter
 .lede{color:var(--muted);font-size:1.05rem;margin:0 0 2.2em;max-width:52ch}
 .fine{color:var(--dim);font-size:.8rem;margin-top:3em;line-height:1.7}
 .cta{
-  display:inline-block;background:var(--accent);color:#150f1f;border:0;border-radius:10px;
+  display:inline-block;background:var(--accent);color:var(--cta-ink);border:0;border-radius:10px;
   padding:16px 30px;font:600 1.05rem/1 var(--sans);cursor:pointer;text-decoration:none;
   transition:filter .15s ease,transform .15s ease;
 }
@@ -29,7 +32,7 @@ h1{font-size:clamp(2.1rem,5.5vw,3.2rem);line-height:1.05;margin:0 0 .45em;letter
 .bar{
   display:flex;gap:20px;align-items:flex-start;justify-content:space-between;
   flex-wrap:wrap;padding:20px 24px;border-bottom:1px solid var(--line);
-  background:rgba(12,11,16,.72);backdrop-filter:blur(6px);position:sticky;top:0;z-index:5;
+  background:var(--bar);backdrop-filter:blur(6px);position:sticky;top:0;z-index:5;
 }
 .bar h1{font-size:1rem;margin:0 0 4px;display:flex;gap:10px;align-items:baseline}
 .bar .sub{margin:0;color:var(--dim);font-size:.78rem}
@@ -45,15 +48,15 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
 .records{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .rec{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .rec.is-closed{opacity:.75}
-.rec.open{border-color:#3a3350}
+.rec.open{border-color:var(--open)}
 .row{
   display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;width:100%;
   background:none;border:0;color:inherit;font:inherit;text-align:left;padding:11px 14px;cursor:pointer;
 }
-.row:hover{background:#191623}
+.row:hover{background:var(--hover)}
 .badge{
   font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-align:center;
-  padding:4px 0;border-radius:5px;background:#211d2e;color:var(--muted);
+  padding:4px 0;border-radius:5px;background:var(--badge);color:var(--muted);
 }
 .badge.k-http{background:#1f2436;color:#8fb0e8}
 .badge.k-grpc{background:#251f33;color:#b48ce0}
@@ -75,12 +78,12 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
   margin:16px 0 6px;font-size:.66rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);
 }
 .detail pre{
-  margin:0;padding:10px 12px;background:#100e17;border:1px solid var(--line);border-radius:7px;
+  margin:0;padding:10px 12px;background:var(--pre);border:1px solid var(--line);border-radius:7px;
   font-family:var(--mono);font-size:.76rem;line-height:1.5;overflow-x:auto;white-space:pre-wrap;
   word-break:break-word;max-height:340px;
 }
 .events{list-style:none;margin:0;padding:0;font-family:var(--mono);font-size:.74rem}
-.ev{display:grid;grid-template-columns:70px 78px 1fr;gap:8px;padding:4px 0;border-bottom:1px dashed #201c2b}
+.ev{display:grid;grid-template-columns:70px 78px 1fr;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .ev.out{color:var(--sage)}
 .ev-at{color:var(--dim)}
 .ev-body{white-space:pre-wrap;word-break:break-word}
@@ -91,20 +94,20 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
 }
 .send .hint{text-transform:none;letter-spacing:0;color:var(--dim);font-size:.72rem}
 pre.cmd{
-  margin:0;padding:10px 12px;background:#100e17;border:1px solid var(--line);border-radius:8px;
+  margin:0;padding:10px 12px;background:var(--pre);border:1px solid var(--line);border-radius:8px;
   font-family:var(--mono);font-size:.72rem;line-height:1.55;white-space:pre-wrap;word-break:break-all;
   cursor:copy;transition:border-color .15s ease;
 }
-pre.cmd:hover{border-color:#3a3350}
+pre.cmd:hover{border-color:var(--open)}
 pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 .mini{
-  margin-left:auto;background:#211d2e;color:var(--ink);border:1px solid var(--line);
+  margin-left:auto;background:var(--badge);color:var(--ink);border:1px solid var(--line);
   border-radius:6px;padding:4px 10px;font:600 .68rem/1.4 var(--sans);cursor:pointer;
 }
 .mini:hover{border-color:var(--accent);color:var(--accent)}
 .banner{
   margin:0 0 18px;padding:14px 16px;border:1px solid var(--err);border-radius:10px;
-  background:#221317;color:#f0c9c2;font-size:.9rem;
+  background:var(--banner-bg);color:var(--banner-ink);font-size:.9rem;
 }
 /* one shared confirmation, floating over the header */
 .toast{
@@ -119,3 +122,40 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 .toast.show{opacity:1}
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}
 .send .badge{padding:4px 8px}
+
+/* ---------- theme switch ---------- */
+.controls{display:flex;align-items:center;gap:10px;margin-left:auto}
+.theme{
+  display:grid;place-items:center;width:34px;height:34px;padding:0;
+  background:transparent;color:var(--muted);border:1px solid var(--line);
+  border-radius:9px;cursor:pointer;
+  transition:color .15s ease,border-color .15s ease;
+}
+.theme:hover{color:var(--accent);border-color:var(--accent)}
+.theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.theme svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+/* the icon shows the mode you would switch to */
+.theme .i-moon{display:none}
+[data-theme="light"] .theme .i-sun{display:none}
+[data-theme="light"] .theme .i-moon{display:block}
+
+/* ---------- light ---------- *
+ * The palette is the only thing that changes: every surface reads its colour
+ * from a token, so this block is the whole light theme. Values are chosen to
+ * keep body text above 7:1 on the page and UI text above 4.5:1.
+ */
+[data-theme="light"]{
+  --bg:#f5f3fa; --panel:#ffffff; --ink:#191521; --muted:#544d68; --dim:#6f6880;
+  --line:#ded8ea; --accent:#6a34a8; --sage:#2c7a52; --warn:#8a5300; --err:#a8342a;
+  --wall-hi:#ebe4f7; --bar:rgba(245,243,250,.82); --hover:#efeaf9;
+  --pre:#faf8ff; --badge:#ece7f6; --cta-ink:#ffffff; --open:#c2b0e2;
+  --banner-bg:#fdeceb; --banner-ink:#7f2a20;
+}
+[data-theme="light"] .badge.k-http{background:#e3ebfb;color:#25478f}
+[data-theme="light"] .badge.k-grpc{background:#efe3fb;color:#5f2f9e}
+[data-theme="light"] .badge.k-ws{background:#e0f1e7;color:#2c7a52}
+[data-theme="light"] .badge.k-sse{background:#fbefd9;color:#8a5300}
+[data-theme="light"] .badge.k-tcp{background:#fbe4e1;color:#a8342a}
+[data-theme="light"] .badge.k-udp{background:#dff0f2;color:#1c6a72}
+[data-theme="light"] .toast{box-shadow:0 6px 20px rgba(25,21,33,.18)}

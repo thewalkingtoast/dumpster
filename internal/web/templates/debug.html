@@ -4,13 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dumpster {{.ID}}</title>
-  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <!-- Synchronous on purpose: sets data-theme before the first paint. -->
+  <script src="{{asset "theme.js"}}"></script>
+  <link rel="icon" href="{{asset "icon.svg"}}" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="32x32">
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="{{asset "apple-touch-icon.png"}}">
   <link rel="manifest" href="/site.webmanifest">
-  <meta name="theme-color" content="#0c0b10">
-  <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/app.js" defer></script>
+  <meta name="theme-color" content="#0c0b10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f3fa" media="(prefers-color-scheme: light)">
+  <link rel="stylesheet" href="{{asset "style.css"}}">
+  <script src="{{asset "app.js"}}" defer></script>
 </head>
 <body class="debug"
       data-id="{{.ID}}"
@@ -27,7 +30,19 @@
       <p class="sub">burns in <strong id="ttl">&mdash;</strong> &middot; anyone with this link can read it
         &middot; <a href="/">Rent a dumpster</a></p>
     </div>
-    <div class="status" id="status" aria-live="polite">connecting&hellip;</div>
+    <div class="controls">
+      <div class="status" id="status" aria-live="polite">connecting&hellip;</div>
+      <button class="theme" id="theme-toggle" type="button" aria-pressed="false"
+              aria-label="Switch to light mode" title="Switch to light mode">
+        <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.1 5.1l1.9 1.9M17 17l1.9 1.9M18.9 5.1 17 7M7 17l-1.9 1.9"/>
+        </svg>
+        <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20 14.4A8.3 8.3 0 0 1 9.6 4a8.5 8.5 0 1 0 10.4 10.4Z"/>
+        </svg>
+      </button>
+    </div>
   </header>
 
   <main class="grid">

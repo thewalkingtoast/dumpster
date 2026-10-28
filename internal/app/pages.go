@@ -18,7 +18,7 @@ import (
 // emit half a page with a 200 already on the wire.
 func (a *App) render(w http.ResponseWriter, status int, name string, data any) {
 	var buf bytes.Buffer
-	if err := web.Templates.ExecuteTemplate(&buf, name, data); err != nil {
+	if err := web.TemplatesFor(a.cfg.Version).ExecuteTemplate(&buf, name, data); err != nil {
 		a.log.Error("render template", "template", name, "err", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
