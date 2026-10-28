@@ -276,6 +276,7 @@ Health check: `GET /healthz` → `200 {"ok":true}`, or `503` with a reason.
 | `403` from `/sse/emit` | missing or stale CSRF token | use the token from that dumpster's page |
 | `403` "That request did not come from this page" on Rent | page is older than the running process, so its token was signed by a previous build | reload; set `DUMPSTER_CSRF_SECRET` so tokens survive deploys |
 | Rent works on one instance, 403s behind a load balancer | per-process CSRF secret | set the same `DUMPSTER_CSRF_SECRET` everywhere |
+| Rent 403s in Firefox but works in Chrome/curl | the request carried `Origin: null`, which Firefox sends when the page is served `Referrer-Policy: no-referrer` | keep the app's `same-origin` policy; do not override it in the proxy |
 | `429` "too many requests" with `Retry-After` | `-ingest-per-minute` exceeded | wait, or raise the limit |
 | `429` "Your yard is full" | `-max-per-ip` reached | expire old dumpsters or raise the limit |
 | `429` on the landing page | `DUMPSTER_RENT_PER_HOUR` | wait an hour |
@@ -308,6 +309,11 @@ may look. The controls that matter are the TTL, the per-address ceilings, and
 keeping the process behind a proxy you control.
 
 CSRF tokens guard the actions that spend resources (renting, emitting SSE). The
+origin check beside them compares a *named* origin against the request's host; an
+opaque `Origin: null` is treated as unknown rather than hostile, because Firefox
+sends exactly that for a legitimate same-origin form post when the page sets
+`Referrer-Policy: no-referrer`. The token is the actual defence, and it is
+required either way. The
 landing page and the debug page cannot be framed (`X-Frame-Options: DENY` plus
 `frame-ancestors 'none'`), and wildcard CORS is granted only to
 `/d/<uuid>/<subpath>` — the ingest surface — never to the HTML pages that carry a

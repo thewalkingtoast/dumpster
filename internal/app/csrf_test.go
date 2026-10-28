@@ -77,8 +77,12 @@ func TestCrossOriginRentIsForbidden(t *testing.T) {
 	if got := post("https://evil.example"); got != http.StatusForbidden {
 		t.Fatalf("cross-origin rent = %d, want 403", got)
 	}
-	if got := post("null"); got != http.StatusForbidden {
-		t.Fatalf("opaque origin rent = %d, want 403", got)
+	// "null" is what Firefox sends for a same-origin form post when the policy is
+	// no-referrer, so it means "unknown", not "somewhere else". The token below is
+	// valid, and the token is what actually defends the endpoint. A null origin
+	// with no token is refused (TestNullOriginStillNeedsTheToken).
+	if got := post("null"); got != http.StatusSeeOther {
+		t.Fatalf("opaque origin rent = %d, want 303 with a valid token", got)
 	}
 	if got := post(a.BaseURL()); got != http.StatusSeeOther {
 		t.Fatalf("same-origin rent = %d, want 303", got)

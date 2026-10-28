@@ -36,7 +36,10 @@ func (a *App) withHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "no-referrer")
+		// same-origin, not no-referrer: Firefox nulls a form POST's Origin header
+		// when the policy is no-referrer, which made every rent in Firefox look
+		// cross-origin. This still keeps the referrer away from other origins.
+		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Robots-Tag", "noindex, nofollow")
 		// Older browsers ignore frame-ancestors; this is the same rule in a form
 		// they understand.

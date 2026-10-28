@@ -117,12 +117,22 @@ func (a *App) csrfOK(r *http.Request) bool {
 
 // sameOrigin compares an Origin header against the request's own Host.
 func sameOrigin(r *http.Request, origin string) bool {
+	origin = strings.TrimSpace(origin)
+	// "null" is not evidence of a cross-origin request. Firefox sends it for a
+	// same-origin form post when the response sets Referrer-Policy: no-referrer,
+	// and a sandboxed frame produces the same value — so it says "unknown", and
+	// the token decides. Refusing it here breaks the main call to action in one
+	// browser and nothing else.
+	if origin == "" || strings.EqualFold(origin, "null") {
+		return true
+	}
 	rest, ok := strings.CutPrefix(origin, "http://")
 	if !ok {
 		rest, ok = strings.CutPrefix(origin, "https://")
 	}
 	if !ok {
-		return false // "null" or anything exotic: refuse
+		return true // a scheme we do not model; the token still has to be valid
 	}
+	// Only a real origin naming a different host is a contradiction.
 	return strings.EqualFold(rest, r.Host)
 }
