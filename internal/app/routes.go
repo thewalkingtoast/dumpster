@@ -55,6 +55,16 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 		a.handleSSEListen(w, r, sid)
 		return
 	}
+	if sub == "/sse/emit" {
+		// Removed, and deliberately not swallowed by the generic sink below: an
+		// old client would get a cheerful 200, no events, and no idea why. Say
+		// what replaced it instead.
+		writeJSON(w, http.StatusGone, map[string]any{
+			"ok":    false,
+			"error": "the emit endpoint is gone: connecting to /sse sends the events, to every listener",
+		})
+		return
+	}
 	if sub == "/ws" {
 		a.handleWSIngest(w, r, sid)
 		return

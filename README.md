@@ -285,6 +285,7 @@ paired with the previous stylesheet. Requests without a stamp revalidate
 | Process exits: *"-tls is on but grpc needs both a cert and a key"* | TLS on, no certificate | supply both, or turn `-tls` off |
 | Process exits: *"grpc tls cert/key set but -tls is off"* | certificate with the switch off | add `-tls` or remove the certificate |
 | Process exits: *"grpc tls: no such file"* | container can't read the cert | fix ownership/ACL for uid 10001 |
+| `410` from `/sse/emit` | that endpoint was removed | connect to `/d/<uuid>/sse` — connecting is the trigger now |
 | `403` "That request did not come from this page" on Rent | page is older than the running process, so its token was signed by a previous build | reload; set `DUMPSTER_CSRF_SECRET` so tokens survive deploys |
 | Rent works on one instance, 403s behind a load balancer | per-process CSRF secret | set the same `DUMPSTER_CSRF_SECRET` everywhere |
 | Rent 403s in Firefox but works in Chrome/curl | the request carried `Origin: null`, which Firefox sends when the page is served `Referrer-Policy: no-referrer` | keep the app's `same-origin` policy; do not override it in the proxy |

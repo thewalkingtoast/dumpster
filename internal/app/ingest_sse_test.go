@@ -3,6 +3,7 @@ package app
 import (
 	"bufio"
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -207,5 +208,35 @@ func TestBurstReachesEveryListener(t *testing.T) {
 	}
 	if n := readEvents(first, sseWelcomeEvents); n != sseWelcomeEvents {
 		t.Fatalf("the already-open listener saw %d of the second connection's %d events", n, sseWelcomeEvents)
+	}
+}
+
+// The endpoint is gone, but "gone" must not mean "silently behaves like ingest":
+// a stale client would get a 200 and wonder why nothing arrived.
+func TestRemovedEmitEndpointSaysWhatReplacedIt(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	for _, method := range []string{http.MethodPost, http.MethodGet} {
+		req, err := http.NewRequest(method, a.BaseURL()+"/d/"+id+"/sse/emit?count=1", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := noRedirect.Do(req)
+		if err != nil {
+			t.Fatalf("%s emit: %v", method, err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+
+		if res.StatusCode != http.StatusGone {
+			t.Fatalf("%s /sse/emit status = %d, want 410", method, res.StatusCode)
+		}
+		if !strings.Contains(string(body), "/sse") {
+			t.Fatalf("%s /sse/emit does not point at its replacement: %s", method, body)
+		}
+	}
+	if n := len(records(t, a, id)); n != 0 {
+		t.Fatalf("a call to the removed endpoint recorded %d row(s)", n)
 	}
 }

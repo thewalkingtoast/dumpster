@@ -210,7 +210,7 @@ $ POST /rent            (no token)       → 403
 $ POST /rent            (tampered sig)   → 403
 $ POST /rent            (future-dated)   → 403
 $ POST /rent            (valid, 1h44m)   → 303   ← correct: 12h TTL, fixed secret
-$ POST /sse/emit                         → 404 (endpoint removed; see the F2 amendment)
+$ POST /sse/emit                         → 410 (endpoint removed; it explains the replacement)
 $ GET  /d/<id>/sse                        → five events, one a second, at every listener
 $ POST /d/<id>/anything (no token)       → 200   ← ingest is open by design
 $ GET  /static/                          → 404 (was 200 + listing)
