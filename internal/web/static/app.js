@@ -68,19 +68,32 @@
   // The write is skipped when the string is unchanged, which is most ticks for
   // most rows — touching textContent costs a layout pass even when the value is
   // identical.
-  function tickAges(now = Date.now()) {
+  function tickAges(now = Date.now(), maxAgeSeconds = Infinity) {
     for (const node of document.querySelectorAll('.age[data-at]')) {
+      const age = (now - new Date(node.dataset.at).getTime()) / 1000;
+      if (age > maxAgeSeconds) continue;
       const next = ago(node.dataset.at, now);
       if (node.textContent !== next) node.textContent = next;
     }
   }
 
+  // A label only changes as fast as its own precision: every second while it
+  // reads "12s ago", once a minute once it reads "12m ago". Two passes, each at
+  // the cadence its rows need, stop a long-lived page from rescanning every row
+  // sixty times a minute to print the same text.
+  //
+  // The 62-second ceiling is a hair past a minute on purpose: a row crossing the
+  // boundary must not be stranded on "59s ago" until the slow pass next fires.
+  const YOUNG_SECONDS = 62;
+
   function startAgeTicker() {
-    // A hidden tab has nobody to read it: skip the work, then catch up on return
-    // so the first ages after switching back are not a second stale.
+    // A hidden tab has nobody to read it, so skip the work and catch up on return.
+    setInterval(() => {
+      if (!document.hidden) tickAges(Date.now(), YOUNG_SECONDS);
+    }, 2000);
     setInterval(() => {
       if (!document.hidden) tickAges();
-    }, 1000);
+    }, 60000);
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) tickAges();
     });

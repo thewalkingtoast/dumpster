@@ -87,7 +87,10 @@ func TestAgeTickerRewritesOnlyAgeNodes(t *testing.T) {
 		{"class: 'age', 'data-at': rec.received_at", "rows no longer carry an age element"},
 		{"querySelectorAll('.age[data-at]')", "the tick does not target just the age nodes"},
 		{"if (node.textContent !== next)", "the tick rewrites ages that did not change"},
-		{"}, 1000)", "the ticker is not on a one-second interval"},
+		{"}, 2000)", "the young pass is not on a two-second interval"},
+		{"}, 60000)", "the slow pass is not on a one-minute interval"},
+		{"maxAgeSeconds", "the tick has no age ceiling, so the fast pass rescans every row"},
+		{"YOUNG_SECONDS", "no boundary for which rows the fast pass owns"},
 		{"document.hidden", "the ticker runs in hidden tabs"},
 		{"startAgeTicker();", "the ticker is never started"},
 	} {
