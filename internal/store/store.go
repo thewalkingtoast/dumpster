@@ -45,7 +45,7 @@ type Store struct {
 type entry struct {
 	mu      sync.Mutex
 	dump    model.Dumpster
-	owner   string // renter's ip, for the per-caller cap
+	owner   string          // renter's ip, for the per-caller cap
 	records []*model.Record // oldest first; List reverses
 	nextSeq uint64
 }

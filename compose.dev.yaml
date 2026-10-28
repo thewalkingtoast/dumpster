@@ -36,7 +36,7 @@ services:
       # `make run` in this container therefore uses Redis; unset it to use memory.
       DUMPSTER_REDIS_URL: redis://redis:6379/0
       DUMPSTER_BASE_URL: http://localhost:8080
-      DUMPSTER_TTL: 1h          # short locally, so expiry is easy to watch
+      DUMPSTER_TTL: 3h          # same as production; set 1h here to watch one expire
     ports:
       - "8080:8080"   # http + websocket + sse
       - "8081:8081"   # grpc

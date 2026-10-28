@@ -92,6 +92,9 @@ func TestRentStopsAtThePerAddressAllowance(t *testing.T) {
 	if code != http.StatusTooManyRequests {
 		t.Fatalf("second rent from the same address = %d, want 429", code)
 	}
+	if !strings.Contains(body, "already holds 1 dumpster.") {
+		t.Fatalf("429 page pluralised the limit wrongly")
+	}
 	if !strings.Contains(body, "Your yard is full") {
 		t.Fatalf("429 page did not explain the per-address limit")
 	}

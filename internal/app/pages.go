@@ -54,7 +54,7 @@ func (a *App) handleRent(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, store.ErrFullPerIP):
 		w.Header().Set("Retry-After", "600")
 		a.renderError(w, http.StatusTooManyRequests, "Your yard is full",
-			"This address already holds "+fmt.Sprint(a.cfg.MaxPerIP)+" dumpsters. They expire after "+humanDuration(a.cfg.TTL)+".")
+			"This address already holds "+plural(a.cfg.MaxPerIP, "dumpster")+". They expire after "+humanDuration(a.cfg.TTL)+".")
 	case errors.Is(err, store.ErrFull):
 		a.renderError(w, http.StatusServiceUnavailable, "The yard is full",
 			"Every dumpster is currently rented. They empty themselves after "+humanDuration(a.cfg.TTL)+".")
@@ -64,6 +64,14 @@ func (a *App) handleRent(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Redirect(w, r, "/d/"+d.ID, http.StatusSeeOther)
 	}
+}
+
+// plural renders 1 dumpster / 2 dumpsters.
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 // humanDuration renders 3h0m0s as "3h", and 500ms as "500ms".

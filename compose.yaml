@@ -9,7 +9,7 @@ services:
       - "8082:8082"   # raw tcp
       - "8083:8083/udp"   # raw udp — the /udp suffix is required; a bare port publishes tcp
     environment:
-      DUMPSTER_TTL: 12h
+      DUMPSTER_TTL: 3h
       DUMPSTER_MAX_BODY: "1048576"
       DUMPSTER_MAX_DUMPSTERS: "10000"
       DUMPSTER_REDIS_URL: redis://redis:6379/0
