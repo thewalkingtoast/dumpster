@@ -10,8 +10,8 @@ func TestDefaultConfig(t *testing.T) {
 	if c.HTTPAddr != ":8080" || c.GRPCAddr != ":8081" || c.TCPAddr != ":8082" || c.UDPAddr != ":8083" {
 		t.Fatalf("addrs = %+v", c)
 	}
-	if c.TTL != 12*time.Hour {
-		t.Fatalf("TTL = %v, want 12h", c.TTL)
+	if c.TTL != 3*time.Hour {
+		t.Fatalf("TTL = %v, want 3h", c.TTL)
 	}
 	if c.MaxBody != 1<<20 {
 		t.Fatalf("MaxBody = %d, want 1 MiB", c.MaxBody)

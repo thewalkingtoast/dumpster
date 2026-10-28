@@ -49,7 +49,7 @@ func DefaultConfig() Config {
 		TCPAddr:  ":8082",
 		UDPAddr:  ":8083",
 
-		TTL:       12 * time.Hour,
+		TTL:       3 * time.Hour,
 		ReapEvery: time.Minute,
 
 		MaxBody:      1 << 20,

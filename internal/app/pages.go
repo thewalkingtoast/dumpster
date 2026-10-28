@@ -62,7 +62,7 @@ func (a *App) handleRent(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// humanDuration renders 12h0m0s as "12h", and 500ms as "500ms".
+// humanDuration renders 3h0m0s as "3h", and 500ms as "500ms".
 func humanDuration(d time.Duration) string {
 	if d >= time.Hour && d%time.Hour == 0 {
 		return fmt.Sprintf("%dh", int(d.Hours()))
