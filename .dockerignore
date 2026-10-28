@@ -1,0 +1,5 @@
+.git
+.hermes
+bin
+*.test
+*.out
