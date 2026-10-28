@@ -221,3 +221,14 @@ func (s *Store) DeleteExpired(now time.Time) []string {
 	sort.Strings(gone)
 	return gone
 }
+
+// Health always succeeds: the memory store cannot be unreachable.
+func (s *Store) Health() error { return nil }
+
+// Shutdown drops every dumpster. Nothing else holds a reference to them.
+func (s *Store) Shutdown() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dumps = make(map[string]*entry)
+	return nil
+}

@@ -32,7 +32,7 @@ type Addrs struct {
 // App owns every listener and the state behind them.
 type App struct {
 	cfg   Config
-	store *store.Store
+	store store.Backend
 	hub   *hub.Hub
 	rl    *ratelimit.Limiter
 	log   *slog.Logger
