@@ -38,8 +38,8 @@ func TestStylesheetScalesFromTheRootFontSize(t *testing.T) {
 		t.Fatalf("read style.css: %v", err)
 	}
 	s := string(css)
-	if !strings.Contains(s, "html{font-size:120%}") {
-		t.Fatal("style.css lost its 120% root size: rem-based type no longer scales up by 20%")
+	if !strings.Contains(s, "html{font-size:132%}") {
+		t.Fatal("style.css lost its 132% root size: rem-based type no longer scales up")
 	}
 	if strings.Contains(s, "font:16px/") {
 		t.Fatal("body sets a fixed px font size again, which overrides the scaled root")
