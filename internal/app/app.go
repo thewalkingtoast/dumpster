@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/adam/dumpster/internal/hub"
+	"github.com/adam/dumpster/internal/id"
 	"github.com/adam/dumpster/internal/ratelimit"
 	"github.com/adam/dumpster/internal/redisstore"
 	"github.com/adam/dumpster/internal/store"
@@ -134,6 +135,19 @@ func (a *App) Start() error {
 	go a.acceptTCP(tl)
 	go a.readUDP(ul)
 	go a.reapLoop()
+
+	if a.cfg.RedisURL != "" {
+		self := a.cfg.InstanceID
+		if self == "" {
+			self, _ = id.New()
+		}
+		broker, err := hub.NewRedisBroker(a.ctx, a.cfg.RedisURL, "dumpster:", self)
+		if err != nil {
+			return fmt.Errorf("start pubsub relay: %w", err)
+		}
+		a.hub.UseBroker(broker)
+		go func() { _ = a.hub.RunBroker(a.ctx) }()
+	}
 	return nil
 }
 

@@ -2,6 +2,7 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 )
@@ -11,8 +12,9 @@ import (
 type Hub struct {
 	buf int
 
-	mu   sync.Mutex
-	subs map[string]map[chan []byte]struct{}
+	mu     sync.Mutex
+	subs   map[string]map[chan []byte]struct{}
+	broker Broker
 }
 
 // New returns a hub whose subscriber channels buffer `buffer` messages.
@@ -55,17 +57,58 @@ func (h *Hub) Subscribe(dumpsterID string) (<-chan []byte, func()) {
 	return ch, cancel
 }
 
-// Publish marshals msg once and offers it to every subscriber of dumpsterID.
+// Broker carries published messages to other instances.
+type Broker interface {
+	// Publish sends an already-marshalled payload for one dumpster.
+	Publish(ctx context.Context, dumpsterID string, payload []byte) error
+	// Run delivers remote payloads to handle until ctx is cancelled.
+	Run(ctx context.Context, handle func(dumpsterID string, payload []byte)) error
+}
+
+// UseBroker attaches a cross-instance broker. Publishing then goes to the local
+// subscribers and, through the broker, to every other instance.
+func (h *Hub) UseBroker(b Broker) {
+	h.mu.Lock()
+	h.broker = b
+	h.mu.Unlock()
+}
+
+// RunBroker pumps remote messages into the local subscribers.
+func (h *Hub) RunBroker(ctx context.Context) error {
+	h.mu.Lock()
+	b := h.broker
+	h.mu.Unlock()
+	if b == nil {
+		return nil
+	}
+	return b.Run(ctx, func(dumpsterID string, payload []byte) {
+		h.deliver(dumpsterID, payload)
+	})
+}
+
+// Publish marshals msg once and delivers it locally, then to other instances.
 func (h *Hub) Publish(dumpsterID string, msg any) {
 	b, err := json.Marshal(msg)
 	if err != nil {
 		return
 	}
+	h.deliver(dumpsterID, b)
+
+	h.mu.Lock()
+	broker := h.broker
+	h.mu.Unlock()
+	if broker != nil {
+		_ = broker.Publish(context.Background(), dumpsterID, b)
+	}
+}
+
+// deliver fans out to local subscribers only. Never blocks.
+func (h *Hub) deliver(dumpsterID string, payload []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for ch := range h.subs[dumpsterID] {
 		select {
-		case ch <- b:
+		case ch <- payload:
 		default: // subscriber is behind; drop rather than block the ingest
 		}
 	}
