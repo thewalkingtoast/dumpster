@@ -108,24 +108,39 @@ func TestAgeUsesTabularFigures(t *testing.T) {
 	}
 }
 
-// SSE is the one protocol where the dumpster is the server, so the button and the
-// curl line are the same request. Saying so is the difference between a demo and
-// an apparent duplicate — the page cannot run curl, which is the only reason both
-// exist.
-func TestDebugPageSaysTheSSEButtonAndCommandAreTheSameRequest(t *testing.T) {
+// SSE is the one protocol the dumpster publishes, so the page has two jobs:
+// the command listens, the button sends. Making the button open an EventSource
+// would turn the dashboard into its own listener and duplicate every row.
+func TestSSESplitsListeningFromSending(t *testing.T) {
 	html, err := fs.ReadFile(templateFS, "templates/debug.html")
 	if err != nil {
 		t.Fatalf("read debug.html: %v", err)
 	}
-	s := string(html)
+	page := string(html)
 	for _, want := range []struct{ needle, why string }{
-		{"Open SSE stream", "the button is not labelled for what it does (it opens a stream, it does not trigger an event)"},
-		{"make the same request", "the page no longer says the button and the curl line are the same request"},
-		{"the dumpster is the server", "the page does not explain that SSE is outbound-only"},
+		{"Send 5 SSE events", "the button does not say it sends events"},
+		{"listener", "the page does not explain that the command is the listener"},
+		{"Run the command first", "the page does not say which half to run first"},
+		{"how many listeners it reached", "the page does not explain the no-listener case"},
 	} {
-		if !strings.Contains(s, want.needle) {
+		if !strings.Contains(page, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
 		}
+	}
+
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(js)
+	if !strings.Contains(src, "/sse/emit?count=5") {
+		t.Fatal("the button does not POST an emission")
+	}
+	if strings.Contains(src, "new EventSource") {
+		t.Fatal("the page still opens its own SSE listener, which would duplicate its own rows")
+	}
+	if strings.Contains(src, "interval_ms") {
+		t.Fatal("the stale eager-stream parameter is still in the command")
 	}
 }
 

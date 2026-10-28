@@ -86,6 +86,13 @@ func (h *Hub) RunBroker(ctx context.Context) error {
 	})
 }
 
+// Subscribers reports how many listeners currently hold this dumpster open.
+func (h *Hub) Subscribers(dumpsterID string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.subs[dumpsterID])
+}
+
 // Publish marshals msg once and delivers it locally, then to other instances.
 func (h *Hub) Publish(dumpsterID string, msg any) {
 	b, err := json.Marshal(msg)

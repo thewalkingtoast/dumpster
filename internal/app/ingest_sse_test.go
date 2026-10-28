@@ -1,19 +1,74 @@
 package app
 
 import (
-	"io"
+	"bufio"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/adam/dumpster/internal/model"
 )
 
-func TestSSEStreamsAndRecordsEvents(t *testing.T) {
+// An emission with nobody listening must still leave a row: otherwise the page
+// shows nothing after a button press and the operator has to guess whether the
+// click registered, the request failed, or the dumpster was simply empty.
+func TestSSEEmitWithNoListenersRecordsTheAttempt(t *testing.T) {
 	a := newTestApp(t)
 	id := rent(t, a)
 
-	res, err := http.Get(a.BaseURL() + "/d/" + id + "/sse?count=2&interval_ms=1")
+	res, err := http.Post(a.BaseURL()+"/d/"+id+"/sse/emit?count=2", "text/plain", nil)
+	if err != nil {
+		t.Fatalf("POST emit: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var body struct {
+		Emitted   int `json:"emitted"`
+		Listeners int `json:"listeners"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Emitted != 2 || body.Listeners != 0 {
+		t.Fatalf("response = %+v, want 2 emitted to 0 listeners", body)
+	}
+
+	recs := records(t, a, id)
+	if len(recs) != 1 {
+		t.Fatalf("records = %d, want 1 (the emission itself)", len(recs))
+	}
+	rec := recs[0]
+	if rec.Kind != model.KindSSE {
+		t.Fatalf("kind = %q, want sse", rec.Kind)
+	}
+	if rec.Meta["role"] != "emit" || rec.Meta["listeners"] != "0" {
+		t.Fatalf("meta = %+v, want role=emit listeners=0", rec.Meta)
+	}
+	if len(rec.Events) != 2 {
+		t.Fatalf("recorded events = %d, want 2", len(rec.Events))
+	}
+	if !rec.Closed {
+		t.Fatal("an emission is not a session: it should close immediately")
+	}
+}
+
+// The whole point of the split: a listener holds the stream open, an emission
+// arrives later, and the listener sees it.
+func TestSSEListenerReceivesEmittedEvents(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	req, err := http.NewRequest(http.MethodGet, a.BaseURL()+"/d/"+id+"/sse", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A plain client: the shared one may carry a timeout, which would cut a
+	// connection that is supposed to stay open.
+	res, err := (&http.Client{}).Do(req)
 	if err != nil {
 		t.Fatalf("GET sse: %v", err)
 	}
@@ -22,44 +77,58 @@ func TestSSEStreamsAndRecordsEvents(t *testing.T) {
 	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("content-type = %q, want text/event-stream", ct)
 	}
-	payload, err := io.ReadAll(res.Body)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for a.hub.Subscribers(id) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("listener never attached")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	postRes, err := http.Post(a.BaseURL()+"/d/"+id+"/sse/emit?count=3&event=poke&data=hi", "text/plain", nil)
 	if err != nil {
-		t.Fatalf("read stream: %v", err)
+		t.Fatalf("POST emit: %v", err)
 	}
-	if got := strings.Count(string(payload), "event: dump"); got != 2 {
-		t.Fatalf("events = %d, want 2\n%s", got, payload)
+	postRes.Body.Close()
+
+	sc := bufio.NewScanner(res.Body)
+	var data []string
+	for len(data) < 3 && sc.Scan() {
+		line := sc.Text()
+		if strings.HasPrefix(line, "data: ") {
+			data = append(data, strings.TrimPrefix(line, "data: "))
+		}
 	}
-	if got := strings.Count(string(payload), "data: {"); got != 2 {
-		t.Fatalf("data lines = %d, want 2\n%s", got, payload)
+	if len(data) != 3 {
+		t.Fatalf("listener received %d events, want 3 (scanner err: %v)", len(data), sc.Err())
+	}
+	if !strings.Contains(data[0], `"event":1`) || !strings.Contains(data[0], `"payload":"hi"`) {
+		t.Fatalf("first frame = %s, want event 1 carrying the payload", data[0])
 	}
 
-	recs := records(t, a, id)
-	if len(recs) != 1 {
-		t.Fatalf("records = %d, want 1", len(recs))
-	}
-	rec := recs[0]
-	if rec.Kind != model.KindSSE {
-		t.Fatalf("kind = %q, want sse", rec.Kind)
-	}
-	if len(rec.Events) != 2 {
-		t.Fatalf("recorded events = %d, want 2", len(rec.Events))
-	}
-	if !rec.Closed || rec.CloseNote != "stream finished" {
-		t.Fatalf("closed = %v note = %q", rec.Closed, rec.CloseNote)
-	}
-}
+	res.Body.Close() // disconnect the listener
 
-func TestSSECustomEventNameAndClamping(t *testing.T) {
-	a := newTestApp(t)
-	id := rent(t, a)
-
-	res, err := http.Get(a.BaseURL() + "/d/" + id + "/sse?count=0&interval_ms=0&event=tick")
-	if err != nil {
-		t.Fatalf("GET sse: %v", err)
+	var listener *model.Record
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for i := range records(t, a, id) {
+			rec := records(t, a, id)[i]
+			if rec.Meta["role"] == "listener" && rec.Closed && len(rec.Events) == 3 {
+				listener = &rec
+			}
+		}
+		if listener != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	defer res.Body.Close()
-	payload, _ := io.ReadAll(res.Body)
-	if got := strings.Count(string(payload), "event: tick"); got != 1 {
-		t.Fatalf("count=0 should clamp to 1 tick, got %d\n%s", got, payload)
+	if listener == nil {
+		t.Fatalf("listener record did not close with 3 events: %+v", records(t, a, id))
+	}
+	for _, ev := range listener.Events {
+		if ev.Dir != "out" {
+			t.Fatalf("event direction = %q, want out (the dumpster sent it)", ev.Dir)
+		}
 	}
 }

@@ -42,7 +42,11 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if sub == "/sse" {
-		a.handleSSEIngest(w, r, sid)
+		a.handleSSEListen(w, r, sid)
+		return
+	}
+	if sub == "/sse/emit" {
+		a.handleSSEEmit(w, r, sid)
 		return
 	}
 	if sub == "/ws" {

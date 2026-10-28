@@ -36,11 +36,13 @@
       <h3>HTTP <span class="hint">any method, any path</span></h3>
       <pre class="cmd" data-cmd="http"></pre>
 
-      <h3>SSE <span class="hint">the dumpster is the server; you open the stream</span>
-        <button class="mini" id="btn-sse" type="button">Open SSE stream</button></h3>
+      <h3>SSE <span class="hint">the dumpster is the publisher</span>
+        <button class="mini" id="btn-sse" type="button">Send 5 SSE events</button></h3>
       <pre class="cmd" data-cmd="sse"></pre>
-      <p class="hint">This button and the command above make the same request — the page just
-        cannot run curl. Both open one stream of five events, recorded as outgoing.</p>
+      <p class="hint">Two halves, deliberately separate. The command opens a <em>listener</em>
+        and holds it open; the button makes the dumpster <em>send</em> five events to whoever
+        is listening. Run the command first, then press the button. With nobody listening the
+        emission is still recorded — the row says how many listeners it reached.</p>
 
       <h3>gRPC <span class="hint">path or x-dumpster-id</span></h3>
       <pre class="cmd" data-cmd="grpc"></pre>

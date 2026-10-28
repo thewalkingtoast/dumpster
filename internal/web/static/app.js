@@ -305,7 +305,7 @@
 
     const commands = {
       http: `curl -sS -X POST '${ORIGIN}/d/${ID}/anything' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"hello":"dumpster"}'`,
-      sse: `curl -N '${ORIGIN}/d/${ID}/sse?count=5&interval_ms=1000'`,
+      sse: `curl -N '${ORIGIN}/d/${ID}/sse'`,
       grpc: `grpcurl -plaintext -import-path examples -proto dumpster.proto \\\n  -H 'x-dumpster-id: ${ID}' \\\n  -d '{"payload":"aGVsbG8="}' ${GRPC} dumpster.Ingest/Anything`,
       ws: `websocat "ws://${originHost.host}:${originHost.port}/d/${ID}/ws"`,
       tcp: `printf '%s\\nhello\\n' '${ID}' | nc ${tcp.host} ${tcp.port}`,
@@ -333,26 +333,33 @@
     }
   }
 
+  // The button emits; it does not listen. Opening the EventSource from the page
+  // would make the dashboard its own listener and duplicate every row it renders.
   function wireSSE() {
     const button = document.getElementById('btn-sse');
     if (!button) return;
-    let source = null;
-    button.addEventListener('click', () => {
-      if (source) {
-        source.close();
-        source = null;
-        button.textContent = 'Open SSE stream';
-        return;
+    const idle = 'Send 5 SSE events';
+    let busy = false;
+
+    button.addEventListener('click', async () => {
+      if (busy) return;
+      busy = true;
+      button.disabled = true;
+      try {
+        const res = await fetch(ORIGIN + '/d/' + ID + '/sse/emit?count=5', { method: 'POST' });
+        const body = await res.json();
+        const n = body.listeners || 0;
+        button.textContent = n
+          ? 'sent to ' + n + (n === 1 ? ' listener' : ' listeners')
+          : 'sent — nobody listening';
+      } catch {
+        button.textContent = 'send failed';
       }
-      source = new EventSource(ORIGIN + '/d/' + ID + '/sse?count=5&interval_ms=1000');
-      button.textContent = 'Stop SSE';
-      source.addEventListener('error', () => {
-        // The stream ends after `count` events and EventSource would reconnect
-        // forever, minting a new dump row every second. Close it instead.
-        source.close();
-        source = null;
-        button.textContent = 'Open SSE stream';
-      });
+      setTimeout(() => {
+        button.textContent = idle;
+        button.disabled = false;
+        busy = false;
+      }, 2000);
     });
   }
 

@@ -29,7 +29,7 @@ make smoke    # end-to-end against a running server inside the container
 | Protocol | Address |
 | --- | --- |
 | HTTP | `POST http://host:8080/d/<uuid>/any/path` — any method, any path, body kept |
-| SSE | `curl -N 'http://host:8080/d/<uuid>/sse?count=5&interval_ms=1000'` — the same stream the page's *Open SSE stream* button opens |
+| SSE | `curl -N 'http://host:8080/d/<uuid>/sse'` listens; `POST /d/<uuid>/sse/emit?count=5` makes the dumpster send |
 | WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded, every frame echoed |
 | gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method plus `x-dumpster-id` metadata |
 | TCP | `:8082`, first line is the uuid, everything after is payload |
@@ -39,8 +39,10 @@ make smoke    # end-to-end against a running server inside the container
 # http
 curl -X POST "http://localhost:8080/d/$ID/anything" -H 'Content-Type: application/json' -d '{"hello":"dumpster"}'
 
-# sse
-curl -N "http://localhost:8080/d/$ID/sse?count=5&interval_ms=1000"
+# sse — two halves: the shell listens, the POST makes the dumpster send
+curl -N "http://localhost:8080/d/$ID/sse" &          # hold this open first
+curl -X POST "http://localhost:8080/d/$ID/sse/emit?count=5&data=hello"
+wait
 
 # grpc (needs grpcurl)
 grpcurl -plaintext -import-path examples -proto dumpster.proto \
