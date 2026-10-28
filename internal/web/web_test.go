@@ -73,3 +73,37 @@ func TestTimestampFormatterKeepsMillisecondsAndDates(t *testing.T) {
 		t.Fatal("toLocaleTimeString is back: it drops milliseconds and can render midnight as 24:00")
 	}
 }
+
+// Ages must tick without re-rendering rows: a full rebuild every second would
+// fight the live socket and collapse whatever row the reader has open.
+func TestAgeTickerRewritesOnlyAgeNodes(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	s := string(js)
+
+	for _, want := range []struct{ needle, why string }{
+		{"class: 'age', 'data-at': rec.received_at", "rows no longer carry an age element"},
+		{"querySelectorAll('.age[data-at]')", "the tick does not target just the age nodes"},
+		{"if (node.textContent !== next)", "the tick rewrites ages that did not change"},
+		{"}, 1000)", "the ticker is not on a one-second interval"},
+		{"document.hidden", "the ticker runs in hidden tabs"},
+		{"startAgeTicker();", "the ticker is never started"},
+	} {
+		if !strings.Contains(s, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+}
+
+// Tabular figures keep the row from jittering as "9s ago" becomes "10s ago".
+func TestAgeUsesTabularFigures(t *testing.T) {
+	css, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	if !strings.Contains(string(css), "tabular-nums") {
+		t.Fatal("the age is not tabular: rows will shift horizontally as it counts")
+	}
+}

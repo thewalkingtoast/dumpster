@@ -63,6 +63,7 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
 .badge.k-udp{background:#1c2a2c;color:#82c4c9}
 .sum{font-family:var(--mono);font-size:.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .when{color:var(--dim);font-size:.72rem;font-family:var(--mono);white-space:nowrap}
+.age{font-variant-numeric:tabular-nums}
 .detail{border-top:1px solid var(--line);padding:12px 16px 18px;font-size:.82rem}
 .detail h4{
   margin:16px 0 6px;font-size:.66rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);

@@ -51,13 +51,39 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${clock}`;
   };
 
-  function ago(iso) {
-    const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  function ago(iso, now = Date.now()) {
+    const seconds = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
     if (seconds < 5) return 'now';
     if (seconds < 60) return seconds + 's ago';
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return minutes + 'm ago';
     return Math.floor(minutes / 60) + 'h ago';
+  }
+
+  // Rows are built once and then mutated by socket updates, so the age cannot be
+  // baked into the row text. Only the age is rewritten on the tick: replacing
+  // whole rows every second would fight the live socket and collapse any row the
+  // reader has open.
+  //
+  // The write is skipped when the string is unchanged, which is most ticks for
+  // most rows — touching textContent costs a layout pass even when the value is
+  // identical.
+  function tickAges(now = Date.now()) {
+    for (const node of document.querySelectorAll('.age[data-at]')) {
+      const next = ago(node.dataset.at, now);
+      if (node.textContent !== next) node.textContent = next;
+    }
+  }
+
+  function startAgeTicker() {
+    // A hidden tab has nobody to read it: skip the work, then catch up on return
+    // so the first ages after switching back are not a second stale.
+    setInterval(() => {
+      if (!document.hidden) tickAges();
+    }, 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) tickAges();
+    });
   }
 
   function bytes(n) {
@@ -158,11 +184,10 @@
     const head = el('button', { class: 'row', type: 'button' },
       el('span', { class: 'badge k-' + rec.kind, text: String(rec.kind).toUpperCase() }),
       el('span', { class: 'sum', text: summary(rec) }),
-      el('span', {
-        class: 'when',
-        text: fmtTime(rec.received_at) + ' · ' + bytes(sizeOf(rec)) + ' · ' +
-          ((rec.remote && rec.remote.ip) || '?'),
-      }));
+      el('span', { class: 'when' },
+        fmtTime(rec.received_at) + ' · ' + bytes(sizeOf(rec)) + ' · ' +
+          ((rec.remote && rec.remote.ip) || '?') + ' · ',
+        el('span', { class: 'age', 'data-at': rec.received_at, text: ago(rec.received_at) })));
     const li = el('li', {
       class: 'rec' + (rec.closed ? ' is-closed' : ''),
       'data-seq': String(rec.seq),
@@ -331,5 +356,6 @@
   renderCommands();
   wireCopy();
   wireSSE();
+  startAgeTicker();
   connect();
 })();
