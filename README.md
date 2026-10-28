@@ -313,7 +313,11 @@ origin check beside them compares a *named* origin against the request's host; a
 opaque `Origin: null` is treated as unknown rather than hostile, because Firefox
 sends exactly that for a legitimate same-origin form post when the page sets
 `Referrer-Policy: no-referrer`. The token is the actual defence, and it is
-required either way. The
+required either way — which holds only because of one invariant: **a CSRF token is
+never written to a response that another origin may read.** Machine paths under
+`/d/<uuid>/…` grant wildcard CORS, so a refusal there is JSON, never the HTML
+error page; the error page itself drops its token whenever CORS is in play. Without
+that, any page on the internet could fetch a token off a 403 and spend it. The
 landing page and the debug page cannot be framed (`X-Frame-Options: DENY` plus
 `frame-ancestors 'none'`), and wildcard CORS is granted only to
 `/d/<uuid>/<subpath>` — the ingest surface — never to the HTML pages that carry a

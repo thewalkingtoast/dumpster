@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -96,5 +97,61 @@ func TestRentPageCannotBeFramed(t *testing.T) {
 	csp := res.Header.Get("Content-Security-Policy")
 	if !strings.Contains(csp, "frame-ancestors 'none'") {
 		t.Fatalf("CSP lost frame-ancestors: %s", csp)
+	}
+}
+
+// A CSRF token must never ride on a response another origin can read: whoever can
+// read it can spend it, which would make the token ceremony decorative.
+func TestCSRFTokenNeverRidesOnACORSReadableResponse(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	// Every machine path that can refuse a request.
+	for _, path := range []string{
+		"/d/" + id + "/sse/emit?count=1",
+		"/d/" + id + "/anything",
+		"/d/" + id + "/_records.json",
+	} {
+		req, err := http.NewRequest(http.MethodPost, a.BaseURL()+path,
+			strings.NewReader("csrf="))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Origin", "https://evil.test")
+		res, err := noRedirect.Do(req)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+
+		readable := res.Header.Get("Access-Control-Allow-Origin") != ""
+		if readable && strings.Contains(string(body), `name="csrf"`) {
+			t.Fatalf("%s: a CORS-readable response carried a CSRF token:\n%s", path, body)
+		}
+	}
+}
+
+// And the token-less refusal on the emit path is machine-shaped, not a web page.
+func TestSSEEmitRefusalIsNotHTML(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	req, _ := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/sse/emit?count=1",
+		strings.NewReader("csrf="))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := noRedirect.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", res.StatusCode)
+	}
+	if strings.Contains(string(body), "<html") {
+		t.Fatalf("emit refusal is an HTML page:\n%s", body)
 	}
 }

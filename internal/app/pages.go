@@ -35,15 +35,24 @@ func (a *App) render(w http.ResponseWriter, status int, name string, data any) {
 }
 
 // renderError is the one HTML error page.
+// renderError renders the one HTML error page. Callers on a dumpster subpath
+// grant wildcard CORS, so the page must not carry a token there — the guard below
+// makes that structural rather than a thing each caller has to remember.
 func (a *App) renderError(w http.ResponseWriter, status int, title, message string) {
 	// A rate-limited caller cannot rent, so the page must not offer the form:
 	// pressing it would land them on this exact page again. Every other error
 	// states a reason renting would fix, so the CTA belongs there.
+	token := a.csrf.Token()
+	if corsReadable(w) {
+		// A cross-origin reader could parse this token out of the page and then
+		// spend it. Refuse to hand it over: render the page without the form.
+		token = ""
+	}
 	a.render(w, status, "error.html", map[string]any{
 		"Title":   title,
 		"Message": message,
-		"Rent":    status != http.StatusTooManyRequests,
-		"CSRF":    a.csrf.Token(),
+		"Rent":    status != http.StatusTooManyRequests && token != "",
+		"CSRF":    token,
 	})
 }
 

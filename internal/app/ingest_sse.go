@@ -142,8 +142,11 @@ func (a *App) handleSSEEmit(w http.ResponseWriter, r *http.Request, sid string) 
 	// Emitting makes the dumpster act, so it is gated like renting: any client may
 	// send to a dumpster, but only this page may make one speak.
 	if !a.csrfOK(r) {
-		a.renderError(w, http.StatusForbidden, "That request did not come from this page",
-			"Reload the page and press the button again.")
+		// Deliberately not an HTML error page: this path carries wildcard CORS,
+		// so an HTML body would hand a fresh CSRF token to any origin that asked.
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, `{"ok":false,"error":"missing or invalid csrf token"}`)
 		return
 	}
 

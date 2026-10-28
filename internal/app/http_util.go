@@ -83,6 +83,14 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // hasDumpsterSubpath reports whether p addresses something inside a dumpster —
 // /d/<id>/anything — as opposed to /d/<id> itself, the HTML debug page. The page
 // is the app's own UI: no machine client reads it, and it embeds a CSRF token.
+// corsReadable reports whether another origin will be allowed to read this
+// response. The CORS middleware sets the header before handlers run, so a handler
+// can ask this question and refuse to emit anything it would not want read — a
+// CSRF token, above all.
+func corsReadable(w http.ResponseWriter) bool {
+	return w.Header().Get("Access-Control-Allow-Origin") != ""
+}
+
 func hasDumpsterSubpath(p string) bool {
 	if !strings.HasPrefix(p, "/d/") {
 		return false
