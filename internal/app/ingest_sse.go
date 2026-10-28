@@ -113,10 +113,16 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 		flusher.Flush()
 	}
 
-	// Five events, immediately, recorded against this listener's own row. They go
-	// straight to this connection rather than through the hub: a listener should
-	// not replay another listener's welcome burst.
+	// Five events, one every a.welcomeEvery, recorded against this listener's own
+	// row. They go straight to this connection rather than through the hub: a
+	// listener must not replay another listener's welcome.
 	for i := 1; i <= sseWelcomeEvents; i++ {
+		select {
+		case <-r.Context().Done():
+			a.closeRecord(d.ID, stored.Seq, "listener disconnected")
+			return
+		case <-time.After(a.welcomeEvery):
+		}
 		body, err := json.Marshal(map[string]any{
 			"dumpster": d.ID,
 			"event":    i,

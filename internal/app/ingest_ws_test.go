@@ -125,6 +125,7 @@ func TestWSIngestBinaryFrame(t *testing.T) {
 // client that sends nothing still sees the round trip work.
 func TestWSConnectionSendsFivePings(t *testing.T) {
 	a := newTestApp(t)
+	a.welcomeEvery = 20 * time.Millisecond // the cadence itself is tested separately
 	id := rent(t, a)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -165,4 +166,52 @@ func TestWSConnectionSendsFivePings(t *testing.T) {
 		time.Sleep(25 * time.Millisecond)
 	}
 	t.Fatalf("the ws row never recorded %d pings", welcomePings)
+}
+
+// Same cadence on the socket side, read off the recorded timestamps: the pings
+// are one a second, not five at once.
+func TestWelcomePingsLandOnePerSecond(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, wsURL(a, "/d/"+id+"/ws"), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.CloseNow()
+	go func() {
+		for {
+			if _, _, err := c.Read(ctx); err != nil {
+				return
+			}
+		}
+	}()
+
+	deadline := time.Now().Add(9 * time.Second)
+	var pings []time.Time
+	for time.Now().Before(deadline) {
+		pings = pings[:0]
+		for _, rec := range records(t, a, id) {
+			if rec.Kind != model.KindWS {
+				continue
+			}
+			for _, ev := range rec.Events {
+				if ev.Dir == "out" && ev.Type == "ping" {
+					pings = append(pings, ev.At)
+				}
+			}
+		}
+		if len(pings) >= 3 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if len(pings) < 3 {
+		t.Fatalf("only %d pings recorded, want at least 3", len(pings))
+	}
+	if gap := pings[1].Sub(pings[0]); gap < 700*time.Millisecond || gap > 1600*time.Millisecond {
+		t.Fatalf("gap between the first two pings = %v, want about a second", gap)
+	}
 }

@@ -58,6 +58,7 @@ func TestSSEEmitWithNoListenersRecordsTheAttempt(t *testing.T) {
 // arrives later, and the listener sees it.
 func TestSSEListenerReceivesEmittedEvents(t *testing.T) {
 	a := newTestApp(t)
+	a.welcomeEvery = 20 * time.Millisecond // the cadence itself is tested separately
 	id := rent(t, a)
 
 	req, err := http.NewRequest(http.MethodGet, a.BaseURL()+"/d/"+id+"/sse", nil)
@@ -162,6 +163,7 @@ func TestSSEEmitWithoutTokenIsForbidden(t *testing.T) {
 func TestSSEListenerKeepsAnIdleStreamWarm(t *testing.T) {
 	a := newTestApp(t)
 	a.sseKeepAlive = 20 * time.Millisecond
+	a.welcomeEvery = 20 * time.Millisecond // the cadence itself is tested separately
 	id := rent(t, a)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
@@ -201,6 +203,7 @@ func TestSSEListenerKeepsAnIdleStreamWarm(t *testing.T) {
 // each is recorded on the listener's own row.
 func TestSSEListenerSendsFiveEventsOnConnect(t *testing.T) {
 	a := newTestApp(t)
+	a.welcomeEvery = 20 * time.Millisecond // the cadence itself is tested separately
 	id := rent(t, a)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -253,6 +256,7 @@ func TestSSEListenerSendsFiveEventsOnConnect(t *testing.T) {
 // caller forge entire frames — a hijacked type, extra data lines, a fake id.
 func TestSSEEventNameCannotForgeFrames(t *testing.T) {
 	a := newTestApp(t)
+	a.welcomeEvery = 20 * time.Millisecond // the cadence itself is tested separately
 	id := rent(t, a)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -335,5 +339,43 @@ func TestSSEEventNameCannotForgeFrames(t *testing.T) {
 				t.Fatalf("recorded event type carries a newline: %q", ev.Type)
 			}
 		}
+	}
+}
+
+// The burst is paced, not dumped: a debugger watching a terminal should see the
+// events arrive. Measured rather than assumed, because a missing sleep is exactly
+// the kind of thing that passes every content check.
+func TestWelcomeBurstLandsOnePerSecond(t *testing.T) {
+	a := newTestApp(t) // default cadence: one second
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.BaseURL()+"/d/"+id+"/sse", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	res, err := (&http.Client{}).Do(req)
+	if err != nil {
+		t.Fatalf("GET sse: %v", err)
+	}
+	defer res.Body.Close()
+
+	sc := bufio.NewScanner(res.Body)
+	var at []time.Duration
+	for len(at) < 2 && sc.Scan() {
+		if strings.HasPrefix(sc.Text(), "event: ") {
+			at = append(at, time.Since(start))
+		}
+	}
+	if len(at) < 2 {
+		t.Fatalf("only %d of the first two events arrived", len(at))
+	}
+	if at[0] < 700*time.Millisecond {
+		t.Fatalf("first event arrived after %v; it should wait about a second", at[0])
+	}
+	if gap := at[1] - at[0]; gap < 700*time.Millisecond || gap > 1600*time.Millisecond {
+		t.Fatalf("gap between the first two events = %v, want about a second", gap)
 	}
 }

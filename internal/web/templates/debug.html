@@ -52,7 +52,7 @@
       <h3><span class="badge k-sse">SSE</span>&nbsp;<span class="hint">sends five events on connect</span></h3>
       <pre class="cmd" data-cmd="sse"></pre>
       <p class="hint">The command opens a <em>listener</em> and holds it open. Five events
-        arrive immediately, then anything published to this dumpster streams to every
+        arrive, one a second, then anything published to this dumpster streams to every
         listener — <code>POST /d/&lt;id&gt;/sse/emit?count=3</code> with the page's token.</p>
 
       <h3><span class="badge k-grpc">gRPC</span>&nbsp;<span class="hint">path or x-dumpster-id</span></h3>

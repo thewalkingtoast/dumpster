@@ -63,8 +63,8 @@ Rent a dumpster from the landing page — you get `http://host:8080/d/<uuid>`.
 | Protocol | How to reach it |
 | --- | --- |
 | HTTP | any method, any path under `/d/<uuid>/…` |
-| WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded and echoed, five pings on connect |
-| SSE | `GET /d/<uuid>/sse` listens and sends five events on connect; `POST /d/<uuid>/sse/emit` publishes to every listener |
+| WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded and echoed, five pings, one a second, on connect |
+| SSE | `GET /d/<uuid>/sse` listens and sends five events, one a second, on connect; `POST /d/<uuid>/sse/emit` publishes to every listener |
 | gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method with `x-dumpster-id` metadata |
 | TCP | `host:8082` — first line is the uuid, everything after is payload |
 | UDP | `host:8083/udp` — first 36 bytes are the uuid, then optionally a pipe character (`0x7C`) |
@@ -79,7 +79,7 @@ curl -X POST "http://localhost:8080/d/$ID/anything" \
 # websocket (needs websocat)
 websocat "ws://localhost:8080/d/$ID/ws"
 
-# sse — five events arrive the moment you connect
+# sse — five events arrive, one a second, starting one second in
 curl -N "http://localhost:8080/d/$ID/sse"
 
 # push more to every listener (token comes from that dumpster's page)

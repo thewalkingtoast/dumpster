@@ -43,6 +43,12 @@ type App struct {
 	// silent streams (nginx proxy_read_timeout, Cloudflare 100s, many middleboxes
 	// sooner), and a debug page whose stream quietly dies is worse than useless.
 	sseKeepAlive time.Duration
+
+	// welcomeEvery is the gap between the automatic events a new listener gets and
+	// the automatic pings a new socket gets. One a second, not all at once: the
+	// point is to watch them arrive, and a burst that lands in one frame proves the
+	// pipe opens but not that it stays open.
+	welcomeEvery time.Duration
 	conns  *connGate
 	csrf   *csrf
 	log    *slog.Logger
@@ -84,6 +90,7 @@ func New(cfg Config) *App {
 		ingest: ratelimit.New(cfg.IngestPerMinute, time.Minute),
 
 		sseKeepAlive: 15 * time.Second,
+		welcomeEvery: time.Second,
 		conns:  newConnGate(cfg.MaxConnsPerIP),
 		csrf:   tokens,
 		log:    slog.Default(),
