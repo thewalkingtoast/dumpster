@@ -10,9 +10,11 @@
   <main class="hero">
     <h1>{{.Title}}</h1>
     <p class="lede">{{.Message}}</p>
+    {{if .Rent}}
     <form method="post" action="/rent">
       <button class="cta" type="submit">Rent a dumpster</button>
     </form>
+    {{end}}
   </main>
 </body>
 </html>

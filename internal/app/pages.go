@@ -30,7 +30,14 @@ func (a *App) render(w http.ResponseWriter, status int, name string, data any) {
 
 // renderError is the one HTML error page.
 func (a *App) renderError(w http.ResponseWriter, status int, title, message string) {
-	a.render(w, status, "error.html", map[string]any{"Title": title, "Message": message})
+	// A rate-limited caller cannot rent, so the page must not offer the form:
+	// pressing it would land them on this exact page again. Every other error
+	// states a reason renting would fix, so the CTA belongs there.
+	a.render(w, status, "error.html", map[string]any{
+		"Title":   title,
+		"Message": message,
+		"Rent":    status != http.StatusTooManyRequests,
+	})
 }
 
 // handleIndex renders the landing page: one heading, one CTA, nothing else.

@@ -19,6 +19,12 @@ func TestYardIsFull(t *testing.T) {
 	if res.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503 when the yard is full", res.StatusCode)
 	}
+	// Unlike a rate limit, a full yard is a state a new dumpster fixes — so this
+	// page keeps the form that 429 drops.
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), `action="/rent"`) {
+		t.Fatalf("the full-yard page should offer the rent form:\n%s", body)
+	}
 }
 
 func TestRecordCapTrimsOldest(t *testing.T) {
@@ -100,5 +106,31 @@ func TestRentStopsAtThePerAddressAllowance(t *testing.T) {
 	}
 	if code, _ := post("198.51.100.9"); code != http.StatusSeeOther {
 		t.Fatalf("a different address = %d, want 303", code)
+	}
+}
+
+// A rate-limited caller cannot rent, so the page must not offer the form: the
+// button would take them straight back to the same page, which reads as a bug.
+func TestRateLimitedPageDoesNotOfferToRent(t *testing.T) {
+	a := newTestApp(t, func(c *Config) { c.RentPerHour = 1 })
+	rent(t, a) // spends the single allowed rental for this address
+
+	res, err := noRedirect.Post(a.BaseURL()+"/rent", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatalf("POST /rent: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", res.StatusCode)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if strings.Contains(string(body), `action="/rent"`) {
+		t.Fatalf("the rate-limited page offers a rent form that can only bounce back:\n%s", body)
+	}
+	if !strings.Contains(string(body), "Slow down") {
+		t.Fatalf("the page stopped explaining why:\n%s", body)
 	}
 }
