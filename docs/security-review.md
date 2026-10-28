@@ -132,8 +132,8 @@ trailing slash and the test caught the empty-path case immediately.
 | G402 InsecureSkipVerify | `cmd/grpcping` | the debug client now **verifies certificates by default**; `-insecure` is the explicit opt-out, annotated `#nosec` |
 | G104 ×2 | `decode` part close, `loadgen` body close | errors acknowledged with `_ =` and a reason |
 
-`gosec` now reports **0 issues** across 4,087 lines, and `govulncheck` stays
-clean.
+`gosec` now reports **0 issues** across 4,096 lines (with one annotated `#nosec`
+on the deliberate `-insecure` opt-out), and `govulncheck` stays clean.
 
 ---
 
