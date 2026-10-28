@@ -330,6 +330,7 @@
     const commands = {
       http: `curl -sS -X POST '${ORIGIN}/d/${ID}/anything' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"hello":"dumpster"}'`,
       sse: `curl -N '${ORIGIN}/d/${ID}/sse'`,
+      sseemit: `curl -sS -X POST '${ORIGIN}/d/${ID}/sse/emit?count=3'`,
       grpc: `grpcurl ${TLS ? '-insecure' : '-plaintext'} -import-path examples -proto dumpster.proto \\\n  -H 'x-dumpster-id: ${ID}' \\\n  -d '{"payload":"aGVsbG8="}' ${GRPC} dumpster.Ingest/Anything`,
       ws: `websocat "${TLS ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
       tcp: `printf '%s\\nhello\\n' '${ID}' | nc ${tcp.host} ${tcp.port}`,

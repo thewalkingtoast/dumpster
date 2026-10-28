@@ -49,16 +49,18 @@
       <h3><span class="badge k-http">HTTP</span>&nbsp;<span class="hint">any method, any path</span></h3>
       <pre class="cmd" data-cmd="http"></pre>
 
-      <h3><span class="badge k-sse">SSE</span>&nbsp;<span class="hint">sends five events on connect</span></h3>
+      <h3><span class="badge k-sse">SSE</span>&nbsp;<span class="hint small">stream to every listener, events sent on connect</span></h3>
       <pre class="cmd" data-cmd="sse"></pre>
-      <p class="hint">The command opens a <em>listener</em> and holds it open. Five events
-        arrive, one a second, then anything published to this dumpster streams to every
-        listener — <code>POST /d/&lt;id&gt;/sse/emit?count=3</code> with the page's token.</p>
+      <details>
+          <summary>How to use?</summary>
+          <p class="hint">Opens a <em>listener</em> and holds it open. To stream events to every listener, send a separate request such as:
+          <pre class="cmd" data-cmd="sseemit"></pre>
+      </details>
 
       <h3><span class="badge k-grpc">gRPC</span>&nbsp;<span class="hint">path or x-dumpster-id</span></h3>
       <pre class="cmd" data-cmd="grpc"></pre>
 
-      <h3><span class="badge k-ws">WebSocket</span>&nbsp;<span class="hint">echoes your frames, pings five times on connect</span></h3>
+      <h3><span class="badge k-ws">WebSocket</span>&nbsp;<span class="hint small">echoes your frames, pings sent on connect</span></h3>
       <pre class="cmd" data-cmd="ws"></pre>
 
       <h3><span class="badge k-tcp">TCP</span>&nbsp;<span class="hint">id on the first line</span></h3>

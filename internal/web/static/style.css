@@ -102,6 +102,7 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
   margin:20px 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between;
 }
 .send .hint{text-transform:none;letter-spacing:0;color:var(--dim);font-size:.72rem}
+.send .hint.small{font-size:.62rem}
 pre.cmd{
   margin:0;padding:10px 12px;background:var(--pre);border:1px solid var(--line);border-radius:8px;
   font-family:var(--mono);font-size:.72rem;line-height:1.55;white-space:pre-wrap;word-break:break-all;
@@ -194,3 +195,5 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 .logo{display:block;width:1em;height:1em;flex:none;border-radius:22%}
 .bar h1{align-items:center;flex-wrap:wrap;row-gap:2px}
 .bar h1 .logo{width:1.45rem;height:1.45rem}
+details{cursor:pointer}
+details > summary {margin:4px 0;font-size:0.8em;cursor:pointer}
