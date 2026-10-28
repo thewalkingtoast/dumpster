@@ -10,7 +10,9 @@
   <main class="hero">
     <h1>{{.Title}}</h1>
     <p class="lede">{{.Message}}</p>
-    <p><a class="cta ghost" href="/">Rent a dumpster</a></p>
+    <form method="post" action="/rent">
+      <button class="cta" type="submit">Rent a dumpster</button>
+    </form>
   </main>
 </body>
 </html>

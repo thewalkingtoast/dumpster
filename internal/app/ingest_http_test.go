@@ -256,6 +256,14 @@ func TestDebugPageGoneDumpster(t *testing.T) {
 	if !strings.Contains(body, "gone") && !strings.Contains(body, "emptied") {
 		t.Fatalf("404 page should explain the dumpster is gone, got:\n%s", body)
 	}
+	// The next thing anyone wants here is a new dumpster, so the CTA must do the
+	// renting itself rather than bounce them through the landing page.
+	if !strings.Contains(body, `<form method="post" action="/rent">`) {
+		t.Fatalf("the gone page's CTA is not a rent form, got:\n%s", body)
+	}
+	if !strings.Contains(body, `<button class="cta" type="submit">Rent a dumpster</button>`) {
+		t.Fatalf("the gone page has no rent button, got:\n%s", body)
+	}
 }
 
 func TestStaticServesAppJS(t *testing.T) {
