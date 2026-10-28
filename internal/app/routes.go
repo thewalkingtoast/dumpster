@@ -55,10 +55,6 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 		a.handleSSEListen(w, r, sid)
 		return
 	}
-	if sub == "/sse/emit" {
-		a.handleSSEEmit(w, r, sid)
-		return
-	}
 	if sub == "/ws" {
 		a.handleWSIngest(w, r, sid)
 		return

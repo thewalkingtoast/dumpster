@@ -5,23 +5,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
-// SSE is the one protocol where the dumpster is the publisher rather than the
-// receiver, which is why it needs two endpoints where the others need one:
-//
-//	GET  /d/<id>/sse       a client listens; its row stays open while it does
-//	POST /d/<id>/sse/emit  the dumpster sends events to whoever is listening
-//
-// The earlier design had a single endpoint that streamed N events back on
-// connect, which conflated the two roles: the client that triggered the stream
-// was itself the trigger, so the page button and the curl command were the same
-// request and there was no way to listen.
+// SSE is the one protocol where the dumpster speaks first: a listener connects,
+// and five events arrive one a second, published to the dumpster rather than
+// written to that one connection — so with several listeners open they all watch
+// the same five land. Connecting is the trigger; there is no second endpoint to
+// call, which is also why the burst is not a request anyone can forge.
 
 // sseDefaultEvent is the event name used when a publisher does not choose one.
 const sseDefaultEvent = "dump"
@@ -113,39 +107,11 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 		flusher.Flush()
 	}
 
-	// Five events, one every a.welcomeEvery, recorded against this listener's own
-	// row. They go straight to this connection rather than through the hub: a
-	// listener must not replay another listener's welcome.
-	for i := 1; i <= sseWelcomeEvents; i++ {
-		select {
-		case <-r.Context().Done():
-			a.closeRecord(d.ID, stored.Seq, "listener disconnected")
-			return
-		case <-time.After(a.welcomeEvery):
-		}
-		body, err := json.Marshal(map[string]any{
-			"dumpster": d.ID,
-			"event":    i,
-			"of":       sseWelcomeEvents,
-			"at":       time.Now().UTC().Format(time.RFC3339Nano),
-		})
-		if err != nil {
-			break
-		}
-		frame := fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", i, sseDefaultEvent, string(body))
-		if _, err := io.WriteString(w, frame); err != nil {
-			a.closeRecord(d.ID, stored.Seq, "client write failed")
-			return
-		}
-		if canFlush {
-			flusher.Flush()
-		}
-		if updated, err := a.store.AppendEvent(d.ID, stored.Seq, model.Event{
-			At: time.Now(), Dir: "out", Type: sseDefaultEvent, Bytes: len(body), Text: string(body),
-		}); err == nil {
-			a.publishUpdate(d.ID, &updated)
-		}
-	}
+	// Five events, one every a.welcomeEvery, published to the dumpster: with two
+	// listeners open, both watch them land. The goroutine outlives this connection
+	// on purpose — a listener that hangs up should not cut the demonstration short
+	// for everyone else.
+	go a.broadcastWelcome(d.ID)
 
 	keepAlive := time.NewTicker(a.sseKeepAlive)
 	defer keepAlive.Stop()
@@ -191,98 +157,27 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 	}
 }
 
-// handleSSEEmit pushes `count` events to every listener and records the emission
-// as its own row. The row is written even with nobody listening: "fired five
-// events into an empty room" is a fact a debugger should not have to guess.
-func (a *App) handleSSEEmit(w http.ResponseWriter, r *http.Request, sid string) {
-	const maxEvents = 100
-
-	start := time.Now()
-	d, ok := a.mustDumpster(w, sid)
-	if !ok {
-		return
-	}
-
-	// Emitting makes the dumpster act, so it is gated like renting: any client may
-	// send to a dumpster, but only this page may make one speak.
-	if !a.csrfOK(r) {
-		// Deliberately not an HTML error page: this path carries wildcard CORS,
-		// so an HTML body would hand a fresh CSRF token to any origin that asked.
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = io.WriteString(w, `{"ok":false,"error":"missing or invalid csrf token"}`)
-		return
-	}
-
-	count := clampInt(intQuery(r, "count", 5), 1, maxEvents)
-	eventName := sseEventName(r.URL.Query().Get("event"))
-	note := r.URL.Query().Get("data")
-	listeners := a.hub.Subscribers(d.ID)
-
-	rec := &model.Record{
-		Kind:       model.KindSSE,
-		ReceivedAt: start,
-		Remote:     remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP),
-		Req:        requestEnvelope(r, "/sse/emit"),
-		Timing:     timingFrom(r, start),
-		Meta: map[string]string{
-			"role":      "emit",
-			"count":     strconv.Itoa(count),
-			"listeners": strconv.Itoa(listeners),
-		},
-	}
-	stored, err := a.store.Add(d.ID, rec)
-	if err != nil {
-		http.Error(w, "could not record", http.StatusInternalServerError)
-		return
-	}
-	a.publishNew(d.ID, &stored)
-
-	for i := 1; i <= count; i++ {
-		body := map[string]any{
-			"dumpster": d.ID,
+// broadcastWelcome publishes the five opening events to every listener on a
+// dumpster. Names are server-generated, so nothing here can be forged into the
+// frame; the sanitiser in the write path stays as a belt for future publishers.
+func (a *App) broadcastWelcome(id string) {
+	for i := 1; i <= sseWelcomeEvents; i++ {
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-time.After(a.welcomeEvery):
+		}
+		body, err := json.Marshal(map[string]any{
+			"dumpster": id,
 			"event":    i,
-			"of":       count,
+			"of":       sseWelcomeEvents,
 			"at":       time.Now().UTC().Format(time.RFC3339Nano),
-		}
-		if note != "" {
-			body["payload"] = note
-		}
-		data, err := json.Marshal(body)
+		})
 		if err != nil {
-			break
+			return
 		}
-		a.hub.Publish(d.ID, sseMessage{Type: "sse", ID: i, Event: eventName, Data: string(data)})
-		if updated, err := a.store.AppendEvent(d.ID, stored.Seq, model.Event{
-			At: time.Now(), Dir: "out", Type: eventName, Bytes: len(data), Text: string(data),
-		}); err == nil {
-			a.publishUpdate(d.ID, &updated)
-		}
+		a.hub.Publish(id, sseMessage{Type: "sse", ID: i, Event: sseDefaultEvent, Data: string(body)})
 	}
-	a.closeRecord(d.ID, stored.Seq, fmt.Sprintf("emitted %d event(s) to %d listener(s)", count, listeners))
-
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "emitted": count, "listeners": listeners})
-}
-
-// intQuery reads an integer query parameter, falling back to def.
-func intQuery(r *http.Request, key string, def int) int {
-	if v := r.URL.Query().Get(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
-}
-
-// clampInt keeps a caller-supplied number inside sane bounds.
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
 }
 
 // closeRecord marks a live record finished and tells every open dashboard.

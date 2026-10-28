@@ -126,9 +126,10 @@ func TestConnectIsTheDemonstration(t *testing.T) {
 		}
 	}
 	for _, want := range []struct{ needle, why string }{
-		{"sends five events on connect", "the SSE heading does not say what happens on connect"},
+		{"one a second, to every listener", "the SSE heading does not say what happens on connect"},
 		{"Five events", "the SSE hint does not mention the burst"},
-		{"pings five times on connect", "the WebSocket hint does not mention the pings"},
+		{"every listener", "the SSE hint does not say the burst is shared"},
+		{"five pings one a second", "the WebSocket hint does not mention the pings"},
 	} {
 		if !strings.Contains(page, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
@@ -140,7 +141,10 @@ func TestConnectIsTheDemonstration(t *testing.T) {
 		t.Fatalf("read app.js: %v", err)
 	}
 	if strings.Contains(string(js), "sse/emit") {
-		t.Fatal("app.js still posts to sse/emit; nothing on the page should publish")
+		t.Fatal("app.js still mentions sse/emit; that endpoint is gone")
+	}
+	if strings.Contains(page, "sse/emit") {
+		t.Fatal("the page still documents sse/emit; that endpoint is gone")
 	}
 }
 

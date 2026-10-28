@@ -64,7 +64,7 @@ Rent a dumpster from the landing page — you get `http://host:8080/d/<uuid>`.
 | --- | --- |
 | HTTP | any method, any path under `/d/<uuid>/…` |
 | WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded and echoed, five pings, one a second, on connect |
-| SSE | `GET /d/<uuid>/sse` listens and sends five events, one a second, on connect; `POST /d/<uuid>/sse/emit` publishes to every listener |
+| SSE | `GET /d/<uuid>/sse` listens; five events arrive, one a second, at every listener on connect |
 | gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method with `x-dumpster-id` metadata |
 | TCP | `host:8082` — first line is the uuid, everything after is payload |
 | UDP | `host:8083/udp` — first 36 bytes are the uuid, then optionally a pipe character (`0x7C`) |
@@ -79,12 +79,9 @@ curl -X POST "http://localhost:8080/d/$ID/anything" \
 # websocket (needs websocat)
 websocat "ws://localhost:8080/d/$ID/ws"
 
-# sse — five events arrive, one a second, starting one second in
+# sse — five events arrive, one a second, starting one second in.
+# Open this in two terminals: a new connection's burst reaches both.
 curl -N "http://localhost:8080/d/$ID/sse"
-
-# push more to every listener (token comes from that dumpster's page)
-curl -X POST -H "X-CSRF-Token: <token>" \
-  "http://localhost:8080/d/$ID/sse/emit?count=5&data=hello"
 
 # grpc (needs grpcurl; use -insecure instead of -plaintext when the server runs with -tls)
 grpcurl -plaintext -import-path examples -proto dumpster.proto \
@@ -288,7 +285,6 @@ paired with the previous stylesheet. Requests without a stamp revalidate
 | Process exits: *"-tls is on but grpc needs both a cert and a key"* | TLS on, no certificate | supply both, or turn `-tls` off |
 | Process exits: *"grpc tls cert/key set but -tls is off"* | certificate with the switch off | add `-tls` or remove the certificate |
 | Process exits: *"grpc tls: no such file"* | container can't read the cert | fix ownership/ACL for uid 10001 |
-| `403` from `/sse/emit` | missing or stale CSRF token | use the token from that dumpster's page |
 | `403` "That request did not come from this page" on Rent | page is older than the running process, so its token was signed by a previous build | reload; set `DUMPSTER_CSRF_SECRET` so tokens survive deploys |
 | Rent works on one instance, 403s behind a load balancer | per-process CSRF secret | set the same `DUMPSTER_CSRF_SECRET` everywhere |
 | Rent 403s in Firefox but works in Chrome/curl | the request carried `Origin: null`, which Firefox sends when the page is served `Referrer-Policy: no-referrer` | keep the app's `same-origin` policy; do not override it in the proxy |
@@ -323,7 +319,9 @@ customer data at one.** TLS protects the wire in transit; it does not decide who
 may look. The controls that matter are the TTL, the per-address ceilings, and
 keeping the process behind a proxy you control.
 
-CSRF tokens guard the actions that spend resources (renting, emitting SSE). The
+CSRF tokens guard the action that spends resources (renting). SSE needs no token:
+connecting is the trigger, and the five events it sets off are the dumpster's own
+voice, not a caller's content. The
 origin check beside them compares a *named* origin against the request's host; an
 opaque `Origin: null` is treated as unknown rather than hostile, because Firefox
 sends exactly that for a legitimate same-origin form post when the page sets

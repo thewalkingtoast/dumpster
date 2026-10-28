@@ -108,7 +108,6 @@ func TestCSRFTokenNeverRidesOnACORSReadableResponse(t *testing.T) {
 
 	// Every machine path that can refuse a request.
 	for _, path := range []string{
-		"/d/" + id + "/sse/emit?count=1",
 		"/d/" + id + "/anything",
 		"/d/" + id + "/_records.json",
 	} {
@@ -130,28 +129,5 @@ func TestCSRFTokenNeverRidesOnACORSReadableResponse(t *testing.T) {
 		if readable && strings.Contains(string(body), `name="csrf"`) {
 			t.Fatalf("%s: a CORS-readable response carried a CSRF token:\n%s", path, body)
 		}
-	}
-}
-
-// And the token-less refusal on the emit path is machine-shaped, not a web page.
-func TestSSEEmitRefusalIsNotHTML(t *testing.T) {
-	a := newTestApp(t)
-	id := rent(t, a)
-
-	req, _ := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/sse/emit?count=1",
-		strings.NewReader("csrf="))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := noRedirect.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, _ := io.ReadAll(res.Body)
-	res.Body.Close()
-
-	if res.StatusCode != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403", res.StatusCode)
-	}
-	if strings.Contains(string(body), "<html") {
-		t.Fatalf("emit refusal is an HTML page:\n%s", body)
 	}
 }
