@@ -38,10 +38,27 @@ func (a *App) withHeaders(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("X-Robots-Tag", "noindex, nofollow")
-		h.Set("Access-Control-Allow-Origin", "*")
-		h.Set("Access-Control-Allow-Methods", "*")
-		h.Set("Access-Control-Allow-Headers", "*")
-		h.Set("Access-Control-Expose-Headers", "*")
+		// Older browsers ignore frame-ancestors; this is the same rule in a form
+		// they understand.
+		h.Set("X-Frame-Options", "DENY")
+
+		// Wildcard CORS is deliberate and scoped: any client, including a page on
+		// another origin, must be able to talk to a dumpster. It stops at the
+		// dumpster boundary — the landing page embeds a CSRF token, and a remote
+		// page that could read it could rent against someone else's address.
+		if strings.HasPrefix(r.URL.Path, "/d/") {
+			h.Set("Access-Control-Allow-Origin", "*")
+			h.Set("Access-Control-Allow-Methods", "*")
+			h.Set("Access-Control-Allow-Headers", "*")
+			h.Set("Access-Control-Expose-Headers", "*")
+
+			// A browser preflight is not traffic anyone wants dumped: no payload,
+			// and one per request would fill the list with junk rows.
+			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; img-src 'self' data:; style-src 'self'; "+
 				"script-src 'self'; connect-src 'self' ws: wss:; base-uri 'none'; form-action 'self'; "+

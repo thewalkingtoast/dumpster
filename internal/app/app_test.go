@@ -102,9 +102,12 @@ func TestSecurityHeaders(t *testing.T) {
 	a := newTestApp(t)
 	res, _ := get(t, a.BaseURL()+"/healthz")
 	for header, want := range map[string]string{
-		"X-Content-Type-Options":      "nosniff",
-		"X-Robots-Tag":                "noindex, nofollow",
-		"Access-Control-Allow-Origin": "*",
+		"X-Content-Type-Options": "nosniff",
+		"X-Robots-Tag":           "noindex, nofollow",
+		"X-Frame-Options":        "DENY",
+		// No wildcard here: CORS is scoped to /d/ so a remote page cannot read the
+		// landing page's CSRF token. Asserted positively in TestCorsIsWildcard…
+		"Access-Control-Allow-Origin": "",
 	} {
 		if got := res.Header.Get(header); got != want {
 			t.Fatalf("%s = %q, want %q", header, got, want)
