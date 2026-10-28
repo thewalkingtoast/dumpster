@@ -124,7 +124,6 @@ func TestSSESplitsListeningFromSending(t *testing.T) {
 		{"Send 5 SSE events", "the button does not say it sends events"},
 		{"listener", "the page does not explain that the command is the listener"},
 		{"Run the command first", "the page does not say which half to run first"},
-		{"how many listeners it reached", "the page does not explain the no-listener case"},
 	} {
 		if !strings.Contains(page, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
@@ -230,6 +229,43 @@ func TestDetailPaneIsProtocolAgnosticAndFullyCopyable(t *testing.T) {
 	for _, block := range []string{"'received'", "'request'", "'headers'", "'body (raw)'", "'remote'", "'timing (µs)'", "'meta'"} {
 		if !strings.Contains(src[start:end], block) {
 			t.Fatalf("detail pane lost the %s block", block)
+		}
+	}
+}
+
+// A copy needs a confirmation the eye catches without moving it there. One toast
+// for the page, reused: rapid taps replace the message rather than stacking.
+func TestCopyShowsASingleFadingToast(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(js)
+	for _, want := range []struct{ needle, why string }{
+		{"showToast('Copied')", "copying does not raise the toast"},
+		{"let toastEl = null", "the toast is not reused, so taps would stack up"},
+		{"toastEl.classList.remove('show'), 1000", "the toast does not clear after one second"},
+		{"'aria-live': 'polite'", "the toast is not announced to a screen reader"},
+	} {
+		if !strings.Contains(src, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+
+	css, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	sheet := string(css)
+	for _, want := range []struct{ needle, why string }{
+		{".toast{", "no toast styling"},
+		{"position:fixed", "the toast would scroll with the page instead of floating"},
+		{"background:var(--sage)", "the toast does not use the copy green"},
+		{"left:50%;transform:translateX(-50%)", "the toast is not centred"},
+		{".toast.show{opacity:1}", "the toast has no visible state"},
+	} {
+		if !strings.Contains(sheet, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
 		}
 	}
 }

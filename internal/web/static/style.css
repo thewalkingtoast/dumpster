@@ -106,4 +106,16 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
   margin:0 0 18px;padding:14px 16px;border:1px solid var(--err);border-radius:10px;
   background:#221317;color:#f0c9c2;font-size:.9rem;
 }
+/* one shared confirmation, floating over the header */
+.toast{
+  position:fixed;top:.7rem;left:50%;transform:translateX(-50%);
+  z-index:40;pointer-events:none;
+  padding:6px 16px;border-radius:999px;
+  background:var(--sage);color:var(--bg);
+  font:600 .78rem/1.4 var(--sans);letter-spacing:.01em;
+  box-shadow:0 6px 20px rgba(0,0,0,.35);
+  opacity:0;transition:opacity .18s ease;
+}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion: reduce){.toast{transition:none}}
 .send .badge{padding:4px 8px}

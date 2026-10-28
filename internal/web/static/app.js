@@ -352,11 +352,28 @@
     ta.remove();
   }
 
+  // One toast for the whole page: built on first use so a page nobody copies
+  // from never carries it, and reused so rapid taps replace the message instead
+  // of stacking a tower of them.
+  let toastEl = null;
+  let toastTimer = 0;
+  function showToast(message) {
+    if (!toastEl) {
+      toastEl = el('div', { class: 'toast', role: 'status', 'aria-live': 'polite' });
+      document.body.append(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1000);
+  }
+
   function copyText(text, node) {
     if (!text) return;
     const flash = () => {
       node.classList.add('copied');
       setTimeout(() => node.classList.remove('copied'), 700);
+      showToast('Copied');
     };
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(flash, () => legacyCopy(text, flash));
