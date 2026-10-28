@@ -159,3 +159,15 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 [data-theme="light"] .badge.k-tcp{background:#fbe4e1;color:#a8342a}
 [data-theme="light"] .badge.k-udp{background:#dff0f2;color:#1c6a72}
 [data-theme="light"] .toast{box-shadow:0 6px 20px rgba(25,21,33,.18)}
+
+/* ---------- brand lockup ---------- */
+.hero{position:relative}
+/* .hero is the <main> itself, so its padding box reaches the viewport edge and
+   right:0 put the switch against the glass. Inset it by the same 20px the content
+   uses, which also lines it up with the text column on wide screens. */
+.corner{position:absolute;top:20px;right:20px}
+.brand{display:flex;align-items:center;gap:.5em}
+/* The logo is a square tile; it scales with the heading it sits beside. */
+.logo{display:block;width:1em;height:1em;flex:none;border-radius:22%}
+.bar h1{align-items:center;flex-wrap:wrap;row-gap:2px}
+.bar h1 .logo{width:1.45rem;height:1.45rem}

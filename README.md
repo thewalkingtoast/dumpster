@@ -110,7 +110,7 @@ appear twice.
 - Every row shows protocol, time to the millisecond, and a self-updating age.
 - Click any detail block to copy it. Works on plain HTTP too, where
   `navigator.clipboard` is unavailable and a textarea fallback is used.
-- A dark/light switch sits in the header. The choice is remembered per browser
+- A dark/light switch sits in the header of every page. The choice is remembered per browser
   and applied before the first paint (a blocking `theme.js`, since the CSP forbids
   inline scripts), so there is no flash of the wrong palette.
 - Each protocol's copy-paste example is generated for *this* dumpster and follows
@@ -356,6 +356,11 @@ the SVG, then:
 python3 -m pip install cairosvg    # once
 python3 scripts/make-icons.py     # rewrites every raster in static/
 ```
+
+For visual checks there is `scripts/shots.py`, which photographs both themes at
+desktop and phone widths against a running instance (`APP_URL=… python3
+scripts/shots.py`). It needs Playwright; if its browser download fails, point
+`CHROMIUM` at any Chrome on the machine.
 
 Sizes under 32px render from a filter-free variant: at 16px the glow costs about
 half a pixel and turns four tubes into a smear.

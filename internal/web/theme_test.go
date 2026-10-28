@@ -80,15 +80,18 @@ func TestTogglerSitsRightOfTheStatus(t *testing.T) {
 	out := buf.String()
 
 	status := strings.Index(out, `id="status"`)
-	toggle := strings.Index(out, `id="theme-toggle"`)
+	toggle := strings.Index(out, `data-theme-toggle`)
 	if status < 0 || toggle < 0 {
 		t.Fatalf("header is missing the status (%d) or the toggle (%d)", status, toggle)
 	}
 	if toggle < status {
 		t.Fatal("the theme toggle renders before the connection status")
 	}
+	// type="button" is written before the data attribute, so look at a window
+	// around the button rather than strictly after it.
+	window := out[max(0, toggle-140):min(len(out), toggle+320)]
 	for _, want := range []string{`aria-label=`, `aria-pressed=`, `type="button"`} {
-		if !strings.Contains(out[toggle:toggle+320], want) {
+		if !strings.Contains(window, want) {
 			t.Fatalf("the toggle is missing %s", want)
 		}
 	}
@@ -188,4 +191,60 @@ func luminance(hex string) float64 {
 		}
 	}
 	return 0.2126*rgb[0] + 0.7152*rgb[1] + 0.0722*rgb[2]
+}
+
+// Every page carries the switch: landing, error and dumpster.
+func TestEveryPageHasAThemeSwitch(t *testing.T) {
+	for _, page := range []string{"index.html", "debug.html", "error.html"} {
+		var buf bytes.Buffer
+		if err := TemplatesFor("v1").ExecuteTemplate(&buf, page, map[string]any{}); err != nil {
+			t.Fatalf("%s: %v", page, err)
+		}
+		if !strings.Contains(buf.String(), "data-theme-toggle") {
+			t.Fatalf("%s has no theme switch", page)
+		}
+	}
+}
+
+// The landing title and the dumpster header both lead with the logo.
+func TestLogoLeadsTheTitle(t *testing.T) {
+	for _, page := range []string{"index.html", "debug.html"} {
+		var buf bytes.Buffer
+		if err := TemplatesFor("v1").ExecuteTemplate(&buf, page, map[string]any{
+			"ID": "01a183a8-f05f-75a3-91f6-010285188788",
+		}); err != nil {
+			t.Fatalf("%s: %v", page, err)
+		}
+		out := buf.String()
+		logo := strings.Index(out, `<svg class="logo"`)
+		word := strings.Index(out, ">Dumpster</span>")
+		if logo < 0 || word < 0 {
+			t.Fatalf("%s: logo at %d, title at %d", page, logo, word)
+		}
+		if logo > word {
+			t.Fatalf("%s draws the logo after the title", page)
+		}
+	}
+}
+
+// One owner for the theme: app.js is only loaded on a dumpster page, so a switch
+// there would leave the landing and error pages dead.
+func TestOnlyThemeScriptOwnsTheSwitch(t *testing.T) {
+	app, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	if strings.Contains(string(app), "data-theme-toggle") || strings.Contains(string(app), "dumpster-theme") {
+		t.Fatal("app.js still handles the theme; landing and error pages do not load it")
+	}
+
+	theme, err := fs.ReadFile(Static, "theme.js")
+	if err != nil {
+		t.Fatalf("read theme.js: %v", err)
+	}
+	for _, want := range []string{"data-theme-toggle", "querySelectorAll", "localStorage"} {
+		if !strings.Contains(string(theme), want) {
+			t.Fatalf("theme.js does not handle %s", want)
+		}
+	}
 }

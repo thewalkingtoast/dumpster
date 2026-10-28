@@ -16,7 +16,8 @@
 </head>
 <body class="home">
   <main class="hero">
-    <h1>Dumpster</h1>
+    <div class="corner">{{template "themeToggle"}}</div>
+    <h1 class="brand">{{template "logo"}}<span>Dumpster</span></h1>
     <p class="lede">Throw requests at it and watch them land. HTTP, gRPC, WebSocket,
       SSE, TCP, UDP — one link, one live list, {{.TTL}} to live.</p>
     <form method="post" action="/rent">

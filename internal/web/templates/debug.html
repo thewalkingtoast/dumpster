@@ -26,22 +26,13 @@
       data-csrf="{{.CSRF}}">
   <header class="bar">
     <div class="who">
-      <h1>Dumpster <span class="mono">{{.ID}}</span></h1>
+      <h1>{{template "logo"}}<span>Dumpster</span> <span class="mono">{{.ID}}</span></h1>
       <p class="sub">burns in <strong id="ttl">&mdash;</strong> &middot; anyone with this link can read it
         &middot; <a href="/">Rent a dumpster</a></p>
     </div>
     <div class="controls">
       <div class="status" id="status" aria-live="polite">connecting&hellip;</div>
-      <button class="theme" id="theme-toggle" type="button" aria-pressed="false"
-              aria-label="Switch to light mode" title="Switch to light mode">
-        <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <circle cx="12" cy="12" r="4.2"/>
-          <path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.1 5.1l1.9 1.9M17 17l1.9 1.9M18.9 5.1 17 7M7 17l-1.9 1.9"/>
-        </svg>
-        <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M20 14.4A8.3 8.3 0 0 1 9.6 4a8.5 8.5 0 1 0 10.4 10.4Z"/>
-        </svg>
-      </button>
+      {{template "themeToggle"}}
     </div>
   </header>
 

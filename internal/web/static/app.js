@@ -17,36 +17,6 @@
   const countEl = document.getElementById('count');
   const statusEl = document.getElementById('status');
   const ttlEl = document.getElementById('ttl');
-  const themeBtn = document.getElementById('theme-toggle');
-
-  // -- theme switch ---------------------------------------------------------
-  // theme.js has already set data-theme before paint; this only flips it and
-  // keeps the button's label honest about what a click will do.
-  const THEME_KEY = 'dumpster-theme';
-
-  function currentTheme() {
-    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-  }
-
-  function paintThemeButton() {
-    if (!themeBtn) return;
-    const next = currentTheme() === 'light' ? 'dark' : 'light';
-    const label = 'Switch to ' + next + ' mode';
-    themeBtn.setAttribute('aria-label', label);
-    themeBtn.setAttribute('title', label);
-    themeBtn.setAttribute('aria-pressed', currentTheme() === 'light' ? 'true' : 'false');
-  }
-
-  if (themeBtn) {
-    paintThemeButton();
-    themeBtn.addEventListener('click', () => {
-      const next = currentTheme() === 'light' ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', next);
-      try { window.localStorage.setItem(THEME_KEY, next); } catch (e) { /* private mode */ }
-      paintThemeButton();
-    });
-  }
-
   /** seq -> { li, isOpen } */
   const rows = new Map();
 
