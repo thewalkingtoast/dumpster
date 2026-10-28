@@ -9,5 +9,6 @@ FROM alpine:3
 RUN adduser -D -u 10001 dumpster
 USER dumpster
 COPY --from=build /out/dumpster /usr/local/bin/dumpster
-EXPOSE 8080 8081 8082 8083
+EXPOSE 8080 8081 8082
+EXPOSE 8083/udp
 ENTRYPOINT ["/usr/local/bin/dumpster"]

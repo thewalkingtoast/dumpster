@@ -312,7 +312,7 @@ NAME="${DEV_CONTAINER:-dumpster-dev}"
 # The repo path as the DOCKER DAEMON sees it. The daemon here shares this
 # filesystem, so the shell's own pwd is right; override only for a remote one.
 SRC_DIR="${SRC_DIR:-$PWD}"
-PORT_MAP="${PORT_MAP:--p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083}"
+PORT_MAP="${PORT_MAP:--p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083/udp}"
 
 log() { printf '[dev] %s\n' "$*" >&2; }
 
@@ -368,7 +368,9 @@ case "${1:-}" in
         log "nothing to tear down in native mode"; exit 0 ;;
       socket)
         if [ -f compose.dev.yaml ] && [ -n "$(docker compose -f compose.dev.yaml ps -q 2>/dev/null)" ]; then
-          SRC_DIR="$SRC_DIR" docker compose -f compose.dev.yaml down -v
+          # no -v: the go-mod/go-cache volumes are the build cache, and wiping
+          # them makes the next up re-download every module.
+          SRC_DIR="$SRC_DIR" docker compose -f compose.dev.yaml down
         fi
         docker rm -f "$NAME" >/dev/null 2>&1 || true
         log "removed $NAME"
@@ -6650,7 +6652,8 @@ FROM alpine:3
 RUN adduser -D -u 10001 dumpster
 USER dumpster
 COPY --from=build /out/dumpster /usr/local/bin/dumpster
-EXPOSE 8080 8081 8082 8083
+EXPOSE 8080 8081 8082
+EXPOSE 8083/udp
 ENTRYPOINT ["/usr/local/bin/dumpster"]
 ```
 
@@ -6734,10 +6737,10 @@ services:
     image: dumpster:local
     restart: unless-stopped
     ports:
-      - "8080:8080"   # http + websocket + sse
-      - "8081:8081"   # grpc (h2c)
-      - "8082:8082"   # raw tcp
-      - "8083:8083"   # raw udp
+      - "8080:8080"       # http + websocket + sse
+      - "8081:8081"       # grpc (h2c)
+      - "8082:8082"       # raw tcp
+      - "8083:8083/udp"   # raw udp — the /udp suffix is required; a bare port publishes tcp
     environment:
       DUMPSTER_TTL: 12h
       DUMPSTER_MAX_BODY: "1048576"
@@ -6827,10 +6830,10 @@ services:
       DUMPSTER_BASE_URL: http://localhost:8080
       DUMPSTER_TTL: 1h          # short locally, so expiry is easy to watch
     ports:
-      - "8080:8080"   # http + websocket + sse
-      - "8081:8081"   # grpc
-      - "8082:8082"   # raw tcp
-      - "8083:8083"   # raw udp
+      - "8080:8080"       # http + websocket + sse
+      - "8081:8081"       # grpc
+      - "8082:8082"       # raw tcp
+      - "8083:8083/udp"   # raw udp — the /udp suffix is required; a bare port publishes tcp
     depends_on:
       redis:
         condition: service_healthy
@@ -6961,7 +6964,7 @@ make smoke    # end-to-end against a running server inside the container
 | WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded, every frame echoed |
 | gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method plus `x-dumpster-id` metadata |
 | TCP | `:8082`, first line is the uuid, everything after is payload |
-| UDP | `:8083`, first 36 bytes are the uuid, optionally followed by `\|` |
+| UDP | `:8083/udp`, first 36 bytes are the uuid, optionally followed by `\|` |
 
 ```bash
 # http
@@ -6978,8 +6981,9 @@ grpcurl -plaintext -import-path examples -proto dumpster.proto \
 # tcp
 printf '%s\nhello\n' "$ID" | nc localhost 8082
 
-# udp
+# udp  (-u is mandatory; the first 36 bytes are the uuid, then a separator)
 printf '%s|hello' "$ID" | nc -u -w1 localhost 8083
+# nothing prints — UDP is fire-and-forget. The row appears in the page.
 
 # read a dumpster as JSON
 curl -s "http://localhost:8080/d/$ID/_records.json" | python3 -m json.tool
@@ -8755,6 +8759,30 @@ Both fixes are in `internal/app/` and were committed after Task 44 as
 is 12% flaky. Run the package at least twenty times before declaring a gate green, and
 when a failure names a teardown step, dump the goroutines instead of re-reading the
 assertion that "failed" — the failing test was never the broken one.
+
+---
+
+### 13B.3 UDP was not reachable from outside the container
+
+`docker run -p 8083:8083` and a bare compose port line publish **TCP only**. The app
+bound `:8083/udp` correctly and every test passed, because tests bind inside the
+container and never cross a published port — so a datagram sent from the host was
+dropped before it reached the process, and the page simply stayed empty while HTTP,
+SSE, WebSocket, gRPC and TCP all worked.
+
+Every publish point now carries the suffix: `dev.sh`'s `PORT_MAP`,
+`compose.dev.yaml`, `compose.yaml`, and the `Dockerfile`'s `EXPOSE 8083/udp`.
+Verified from outside the container after the fix — a datagram sent to `:8083`
+produced `"kind":"udp"`, `"datagram_bytes":"51"`, `"text":"hello over udp"`.
+
+**Lesson:** a listener is not a network path. If a protocol can only be exercised
+inside the container, the port mapping is untested — send at least one datagram
+from the host side before claiming the protocol works.
+
+Two related fixes landed with it: `down` no longer passes `-v` (that was deleting the
+`go-mod`/`go-cache` volumes, so every `up` re-downloaded ~100 MB), and the README now
+states that `8083` must be published as `8083:8083/udp` and that UDP prints nothing
+because it is fire-and-forget.
 
 ---
 

@@ -20,7 +20,7 @@ NAME="${DEV_CONTAINER:-dumpster-dev}"
 # The repo path as the DOCKER DAEMON sees it. The daemon here shares this
 # filesystem, so the shell's own pwd is right; override only for a remote one.
 SRC_DIR="${SRC_DIR:-$PWD}"
-PORT_MAP="${PORT_MAP:--p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083}"
+PORT_MAP="${PORT_MAP:--p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083/udp}"
 
 log() { printf '[dev] %s\n' "$*" >&2; }
 
@@ -76,7 +76,9 @@ case "${1:-}" in
         log "nothing to tear down in native mode"; exit 0 ;;
       socket)
         if [ -f compose.dev.yaml ] && [ -n "$(docker compose -f compose.dev.yaml ps -q 2>/dev/null)" ]; then
-          SRC_DIR="$SRC_DIR" docker compose -f compose.dev.yaml down -v
+          # no -v: the go-mod/go-cache volumes are the build cache, and wiping
+          # them makes the next up re-download every module.
+          SRC_DIR="$SRC_DIR" docker compose -f compose.dev.yaml down
         fi
         docker rm -f "$NAME" >/dev/null 2>&1 || true
         log "removed $NAME"

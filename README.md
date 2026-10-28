@@ -33,7 +33,7 @@ make smoke    # end-to-end against a running server inside the container
 | WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded, every frame echoed |
 | gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method plus `x-dumpster-id` metadata |
 | TCP | `:8082`, first line is the uuid, everything after is payload |
-| UDP | `:8083`, first 36 bytes are the uuid, optionally followed by `\|` |
+| UDP | `:8083/udp`, first 36 bytes are the uuid, optionally followed by `\|` |
 
 ```bash
 # http
@@ -50,12 +50,20 @@ grpcurl -plaintext -import-path examples -proto dumpster.proto \
 # tcp
 printf '%s\nhello\n' "$ID" | nc localhost 8082
 
-# udp
+# udp  (-u is mandatory; the first 36 bytes are the uuid, then a separator)
 printf '%s|hello' "$ID" | nc -u -w1 localhost 8083
+# nothing prints — UDP is fire-and-forget. The row appears in the page.
 
 # read a dumpster as JSON
 curl -s "http://localhost:8080/d/$ID/_records.json" | python3 -m json.tool
 ```
+
+### Publishing the ports
+
+`8080`–`8082` are TCP; **`8083` is UDP and must be published as `8083:8083/udp`**.
+A bare `-p 8083:8083` publishes TCP only, and UDP datagrams are then silently
+dropped by the host before they ever reach the process — the page simply stays
+empty. Both compose files already do this correctly.
 
 ## Configuration
 
