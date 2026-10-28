@@ -34,7 +34,22 @@
   }
 
   // -- formatting ------------------------------------------------------------
-  const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour12: false });
+  const pad = (n, width = 2) => String(n).padStart(width, '0');
+
+  // HH:MM:SS.mmm in the browser's zone. Milliseconds matter on a page ordered by
+  // arrival: two requests in the same second are common, and without them the
+  // newest-first list looks arbitrarily sorted.
+  //
+  // A row from another day carries a date prefix. Dumpsters live three hours, so
+  // records can predate midnight, and "23:58:01" yesterday reads identically to
+  // "23:58:01" today.
+  const fmtTime = (iso, now = new Date()) => {
+    const d = new Date(iso);
+    const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+    const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    if (sameDay) return clock;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${clock}`;
+  };
 
   function ago(iso) {
     const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));

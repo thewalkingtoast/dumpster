@@ -48,3 +48,28 @@ func TestStylesheetScalesFromTheRootFontSize(t *testing.T) {
 		t.Fatal("body no longer takes its size from the root font size")
 	}
 }
+
+// The row timestamp is the page's ordering evidence: without milliseconds two
+// requests in the same second look arbitrarily sorted, and without a date a
+// record from before midnight is indistinguishable from one after it.
+func TestTimestampFormatterKeepsMillisecondsAndDates(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	s := string(js)
+
+	for _, want := range []struct{ needle, why string }{
+		{"getMilliseconds()", "milliseconds dropped from the row time"},
+		{"pad(d.getMilliseconds(), 3)", "milliseconds not zero-padded to three digits"},
+		{"sameDay", "no same-day check, so older rows lose their date"},
+		{"pad(d.getMonth() + 1)", "date prefix missing its month"},
+	} {
+		if !strings.Contains(s, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+	if strings.Contains(s, "toLocaleTimeString") {
+		t.Fatal("toLocaleTimeString is back: it drops milliseconds and can render midnight as 24:00")
+	}
+}
