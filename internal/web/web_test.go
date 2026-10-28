@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"io/fs"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -315,6 +316,63 @@ func TestDebugPageCarriesTheTLSSwitch(t *testing.T) {
 		}
 		if !strings.Contains(buf.String(), tc.want) {
 			t.Fatalf("TLS=%v: page is missing %s", tc.on, tc.want)
+		}
+	}
+}
+
+// Every command box must have a command behind it. An empty <pre> reads as a
+// broken page, and the only way to get one is a data-cmd with no entry in
+// app.js — so the two files are checked against each other.
+func TestEveryCommandBoxHasACommand(t *testing.T) {
+	page, err := fs.ReadFile(templateFS, "templates/debug.html")
+	if err != nil {
+		t.Fatalf("read debug.html: %v", err)
+	}
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+
+	have := map[string]bool{}
+	for _, m := range regexp.MustCompile("(?m)^\\s+([a-z]+): `").FindAllStringSubmatch(string(js), -1) {
+		have[m[1]] = true
+	}
+	boxes := regexp.MustCompile(`data-cmd="([a-z]+)"`).FindAllStringSubmatch(string(page), -1)
+	if len(boxes) < 8 {
+		t.Fatalf("found only %d command boxes; the template changed shape", len(boxes))
+	}
+	for _, m := range boxes {
+		if !have[m[1]] {
+			t.Fatalf("the page asks for the %q command but app.js has no such entry", m[1])
+		}
+	}
+}
+
+// "Echoes your frames" is a promise; the helper has to say how to make one.
+func TestWebSocketHelperExplainsHowToSendFrames(t *testing.T) {
+	page, err := fs.ReadFile(templateFS, "templates/debug.html")
+	if err != nil {
+		t.Fatalf("read debug.html: %v", err)
+	}
+	body := string(page)
+
+	start := strings.Index(body, `data-cmd="ws"`)
+	end := strings.Index(body, `data-cmd="tcp"`)
+	if start < 0 || end < start {
+		t.Fatal("cannot locate the WebSocket section")
+	}
+	ws := body[start:end]
+	for _, want := range []struct{ needle, why string }{
+		{"How to use?", "the WebSocket section has no helper"},
+		{"press Enter", "the helper does not say how to send a frame interactively"},
+		{"one text frame", "the helper does not say a line is a frame"},
+		{"base64", "the helper does not explain how binary frames are recorded"},
+		{`data-cmd="wsframe"`, "no one-shot example"},
+		{`data-cmd="wsbinary"`, "no binary example"},
+		{"new WebSocket", "no alternative for people without websocat"},
+	} {
+		if !strings.Contains(ws, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
 		}
 	}
 }

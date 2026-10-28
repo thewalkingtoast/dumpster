@@ -62,6 +62,21 @@
 
       <h3><span class="badge k-ws">WebSocket</span>&nbsp;<span class="hint small">echoes your frames, five pings one a second</span></h3>
       <pre class="cmd" data-cmd="ws"></pre>
+      <details>
+          <summary>How to use?</summary>
+          <p class="hint">Opens a socket and holds it open. Type a line and press Enter: each
+            line is sent as one text frame, recorded on this dumpster's row, and echoed
+            straight back at you. The five pings arrive one a second and websocat answers
+            them without printing anything &mdash; that is the socket proving it is alive
+            while the terminal looks idle.</p>
+          <p class="hint">One frame from a pipe, then exit:</p>
+          <pre class="cmd" data-cmd="wsframe"></pre>
+          <p class="hint">A binary frame &mdash; recorded as base64, because bytes that are not
+            UTF-8 are kept byte-for-byte:</p>
+          <pre class="cmd" data-cmd="wsbinary"></pre>
+          <p class="hint">No websocat? The browser console does the same:
+            <code>let ws = new WebSocket('wss://&lt;host&gt;/d/&lt;id&gt;/ws'); ws.onopen = () =&gt; ws.send('hello')</code></p>
+      </details>
 
       <h3><span class="badge k-tcp">TCP</span>&nbsp;<span class="hint">id on the first line</span></h3>
       <pre class="cmd" data-cmd="tcp"></pre>

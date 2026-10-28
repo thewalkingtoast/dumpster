@@ -332,6 +332,8 @@
       sse: `curl -N '${ORIGIN}/d/${ID}/sse'`,
       grpc: `grpcurl ${TLS ? '-insecure' : '-plaintext'} -import-path examples -proto dumpster.proto \\\n  -H 'x-dumpster-id: ${ID}' \\\n  -d '{"payload":"aGVsbG8="}' ${GRPC} dumpster.Ingest/Anything`,
       ws: `websocat "${TLS ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
+      wsframe: `printf 'hello\\n' | websocat -n1 "${TLS ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
+      wsbinary: `printf '\\x00\\x01\\x02' | websocat -b -n1 "${TLS ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
       tcp: `printf '%s\\nhello\\n' '${ID}' | nc ${tcp.host} ${tcp.port}`,
       udp: `printf '%s|hello' '${ID}' | nc -u -w1 ${udp.host} ${udp.port}`,
     };
