@@ -276,7 +276,7 @@ Git identity: after `git init`, run `git config user.email`. If empty, set it **
 ---
 ## 4. Phase 0 — Dev loop and repo skeleton
 
-**Phase gate:** `./scripts/dev.sh go version` prints `go version go1.27.3 linux/arm64`, and `git log --oneline` shows four commits.
+**Phase gate:** `./scripts/dev.sh go version` prints `go version go1.27.3 linux/arm64`, and `git log --oneline` shows **three** commits — Task 1's script lands inside Task 2's commit, exactly as Task 1 instructs, so Tasks 1-4 produce three commits, not four.
 
 ---
 
@@ -314,8 +314,7 @@ NAME="${DEV_CONTAINER:-dumpster-dev}"
 SRC_DIR="${SRC_DIR:-$PWD}"
 PORT_MAP="${PORT_MAP:--p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083}"
 
-log() { printf '[dev] %s
-' "$*" >&2; }
+log() { printf '[dev] %s\n' "$*" >&2; }
 
 if [ "$MODE" = auto ]; then
   if docker info >/dev/null 2>&1; then
@@ -386,9 +385,13 @@ case "${1:-}" in
   sh)
     shift
     cmd="${1:-bash}"
+    # -t only when we actually have a terminal: `docker exec -it` refuses to run
+    # from a non-interactive caller, which is how scripts and CI invoke this.
+    tty=""
+    [ -t 0 ] && tty="-t"
     case "$MODE" in
-      native) exec bash -lc "$cmd" ;;
-      socket) exec docker exec -it -w /src "$NAME" bash -lc "$cmd" ;;
+      native) exec bash -c "$cmd" ;;
+      socket) exec docker exec -i $tty -w /src "$NAME" bash -c "$cmd" ;;
     esac ;;
 
   *)
@@ -962,7 +965,6 @@ package store
 
 import (
 	"errors"
-	"sort"
 	"sync"
 	"time"
 
@@ -1375,7 +1377,24 @@ func TestExpiryHidesAndDeletes(t *testing.T) {
 
 Expected: `s.DeleteExpired undefined`.
 
-**Step 3: Write the implementation** (append to `internal/store/store.go`)
+**Step 3: Add the import, then the implementation**
+
+`DeleteExpired` is the only user of `sort`, so add it to the import block now —
+adding it in Task 7 is what breaks that task's build with `"sort" imported and not used`.
+
+```go
+import (
+	"errors"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/adam/dumpster/internal/id"
+	"github.com/adam/dumpster/internal/model"
+)
+```
+
+Then append to `internal/store/store.go`:
 
 ```go
 // DeleteExpired removes every dumpster whose TTL has passed and returns the
@@ -2941,7 +2960,7 @@ func (a *App) reapLoop() {
 ./scripts/dev.sh go test ./internal/app -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/app	0.00Xs` (4 tests: the two `newTestApp`-backed smoke tests, the reaper, and the header check).
+Expected: `ok  	github.com/adam/dumpster/internal/app	0.00Xs` (7 tests = 3 from Task 14's `config_test.go` + 4 here). Every count below is the whole `internal/app` package, config tests included.
 
 **Step 8: Commit**
 
@@ -3194,7 +3213,7 @@ import (
 ./scripts/dev.sh go test ./internal/app -count=1
 ```
 
-Expected: `ok` (8 tests: 4 from `app_test.go`, 4 from `http_util_test.go`).
+Expected: `ok` (11 tests: 3 config + 4 `app_test.go` + 4 `http_util_test.go`).
 
 **Step 5: Commit**
 
@@ -3423,7 +3442,7 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 ./scripts/dev.sh go test ./internal/app -count=1
 ```
 
-Expected: `ok` (12 tests: 8 from the earlier files, 4 from `pages.go`'s tests).
+Expected: `ok` (15 tests: 11 from the earlier files + 4 new).
 
 **Step 6: Commit**
 
@@ -3724,7 +3743,7 @@ Add `"strings"` to `routes.go` imports.
 ./scripts/dev.sh go test ./internal/app -count=1
 ```
 
-Expected: `ok` (16 tests: 12 + the 4 ingest tests).
+Expected: `ok` (19 tests: 15 + the 4 ingest tests).
 
 **Step 7: Commit**
 
@@ -4095,7 +4114,7 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 ./scripts/dev.sh go test ./internal/app -count=1
 ```
 
-Expected: `ok` (22 tests: 16 + 3 body edge cases from Task 21 + 3 snapshot/page tests).
+Expected: `ok` (25 tests: 19 + 3 body edge cases from Task 21 + 3 snapshot/page tests).
 
 **Step 7: Commit**
 
@@ -4222,7 +4241,7 @@ func TestLiveSendsExpiredWhenReaped(t *testing.T) {
 ./scripts/dev.sh go test ./internal/app -count=1 -run TestLive
 ```
 
-Expected: `dial: ... status = 404`.
+Expected: `dial: failed to WebSocket dial: expected handshake response status code 101 but got 200` — an unreserved `/_live` falls through to `handleHTTPIngest`, which answers 200 to everything. The test is still correctly red: it wanted a socket.
 
 **Step 3: Append the handler to `internal/app/live.go`**
 
@@ -4316,7 +4335,7 @@ Expected: two `--- PASS` lines.
 **Step 6: Commit**
 
 ```bash
-git add internal/app
+git add internal/app go.mod                              # go.mod gains coder/websocket here
 git commit -m "feat(app): stream new and updated records over a dashboard websocket"
 ```
 
@@ -4380,7 +4399,7 @@ Expected: `status = 404, want 200`.
   /** seq -> { li, isOpen } */
   const rows = new Map();
 
-  // -- DOM helpers: textContent only, never innerHTML ------------------------
+  // -- DOM helpers: build nodes with textContent, never raw markup ----------
   function el(tag, props, ...kids) {
     const node = document.createElement(tag);
     if (props) {
@@ -4708,7 +4727,7 @@ Simpler and more reliable: on the debug page, click one of the copy-paste comman
 **Step 6: Commit**
 
 ```bash
-git add internal/web
+git add internal/web internal/app/ingest_http_test.go   # the test lives in internal/app
 git commit -m "feat(web): live record list, detail panes and copy-paste commands"
 ```
 
@@ -4978,7 +4997,6 @@ package app
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -5468,7 +5486,7 @@ func TestGRPCUnknownDumpster(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := cc.Invoke(ctx, "/d0000000000000700080000000000000/Any",
+	err := cc.Invoke(ctx, "/d00000000000000700080000000000000/Any",
 		&rawproto.Message{Body: []byte("x")}, &rawproto.Message{}, grpc.ForceCodec(rawproto.Codec{}))
 	if err == nil {
 		t.Fatal("expected NotFound")
@@ -6612,7 +6630,7 @@ git commit -m "feat(cmd): run the dumpster with flags, env and graceful shutdown
 
 ### Task 34 — `Dockerfile`, built and run on a real daemon
 
-**Objective:** A ~15 MB static image, proven by actually building it.
+**Objective:** A small static image (~30 MB measured: alpine base + a -s -w stripped Go binary), proven by actually building and running it.
 
 **Files:**
 - Create: `Dockerfile`
@@ -6682,15 +6700,14 @@ cannot lie about routing.
 **Step 5: Rent one from the real image, then clean up**
 
 ```bash
-docker exec dumpster-smoke wget -qS -O /dev/null http://127.0.0.1:8080/rent 2>&1 | head -5
+docker exec dumpster-smoke wget -qS -O /dev/null --post-data='' http://127.0.0.1:8080/rent 2>&1 | head -5
 docker rm -f dumpster-smoke
 ```
 
-Expected: a `Location: /d/<36-char-uuid>` header line (from `wget -S`), then the
-container name echoed back by `rm`. A `POST` would be more faithful to the CTA, but
-busybox `wget` cannot post; the redirect on `GET /rent` is `405`, so this step checks
-the image serves the landing page and a real dumpster path rather than re-testing the
-CTA — that is covered by `TestRentMintsDumpster`.
+Expected: `HTTP/1.1 303 See Other` and a `Location: /d/<36-char-uuid>` header, then
+the container name echoed back by `rm`. The `--post-data=''` matters: only `POST /rent`
+is registered, so a bare `GET` correctly answers **404** (the catch-all has no route
+for it) — that 404 is not a bug in the image.
 
 **Step 6: Commit**
 
@@ -7002,7 +7019,7 @@ into one.
 grep -c '^```' README.md
 ```
 
-Expected: an **even** number (the file above has 12).
+Expected: an **even** number — `6`, because the file above has three fenced blocks (the outer ````markdown` fence and two inner ones).
 
 **Step 3: Commit**
 
@@ -7937,7 +7954,7 @@ func (b *Backend) Shutdown() error { return b.rdb.Close() }
 ./scripts/dev.sh go test ./internal/redisstore -count=1 -v
 ```
 
-Expected: eight `--- PASS` lines, **with no Redis server running** — `miniredis` is an in-process Redis over a real TCP socket.
+Expected: seven `--- PASS` lines (`TestCreateAndGet`, `TestMaxDumpsters`, `TestAddAssignsSeqTrimsAndListsNewestFirst`, `TestAppendEventCapsAndCountsDrops`, `TestCloseMarksRecord`, `TestExpiredKeysHidesAndSweeps`, `TestHealth`), **with no Redis server running** — `miniredis` is an in-process Redis over a real TCP socket.
 
 **Step 6: Commit**
 
@@ -8621,6 +8638,126 @@ git commit -m "chore: final cleanup after the full suite" || echo "nothing to co
 
 ---
 
+## 13B. Post-gate hardening (applied after Task 44)
+
+Two defects surfaced only under repetition, and neither is visible in a single green run.
+Both are fixed in the committed tree; this section records them so a rebuild from this
+plan produces the same final state instead of rediscovering them.
+
+### 13B.1 The suite was 12% flaky, and the cause was the test harness
+
+`TestHTTPIngestAcceptsEveryMethod`, `TestRecordsJSONNewestFirst` and
+`TestRecordCapTrimsOldest` failed intermittently with:
+
+```
+app_test.go:32: Shutdown: context deadline exceeded
+--- FAIL: TestHTTPIngestAcceptsEveryMethod (3.00s)
+```
+
+Measured at 5 failures in 40 full-package runs (12.5%), never reproducible with
+`-run`, and present on the tree *before* the Redis work — so it was not introduced by
+Tasks 39–43.
+
+Diagnosis, in the order it was actually established (each step killed a theory):
+
+1. A goroutine dump at the moment of the timeout showed **9 goroutines, no handler
+   frames** — nothing was actively serving.
+2. The dump did show an **idle keep-alive connection** still attached to the server.
+3. `newTestApp` shares `http.DefaultClient` across the whole package, and its idle
+   connections to each app's ephemeral port outlive that app. `http.Server.Shutdown`
+   waits for connections to become idle *and close*, so those connections kept it
+   waiting until the 3 s budget expired.
+
+The fix is in the harness, not the product: drop the shared client's idle connections
+before draining.
+
+```go
+t.Cleanup(func() {
+	// http.DefaultClient is shared by every test in this package and keeps
+	// idle keep-alive connections to each app's port. Those outlive the
+	// server and keep http.Server.Shutdown waiting for them, so drop them
+	// before draining — otherwise roughly one run in eight times out.
+	http.DefaultClient.CloseIdleConnections()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := a.Shutdown(ctx); err != nil {
+		t.Errorf("Shutdown: %v", err)
+	}
+})
+```
+
+Verified: **0 failures in 60 consecutive full-package runs** (was 5/40).
+
+### 13B.2 `Shutdown` had an unbounded call in its critical path
+
+`grpcSrv.GracefulStop()` has no deadline of its own, and the original `Shutdown` called
+it *before* `httpSrv.Shutdown(ctx)` — so a stuck RPC would consume the entire budget and
+the HTTP drain would then fail instantly with `context deadline exceeded`, leaving the
+TCP and UDP listeners open. That is a production hang, not just a test annoyance.
+
+The committed `Shutdown` drains HTTP first (the only listener whose handlers can be
+mid-request and the only one that honours the deadline), disables keep-alives so idle
+connections close rather than linger, bounds `GracefulStop` with a hard `Stop` fallback,
+and only then closes the raw listeners and cancels the app context.
+
+```go
+// Shutdown drains in the order that keeps the ctx budget useful.
+//
+// HTTP goes first because it is the only listener whose handlers can be
+// mid-request, and it is the only one that honours the deadline. Keep-alives are
+// disabled first so idle connections are closed rather than held open.
+//
+// gRPC goes second, and is bounded explicitly: GracefulStop has no deadline of
+// its own, so a stuck stream would otherwise hang the shutdown forever. If the
+// budget runs out we fall back to a hard Stop.
+//
+// The remaining listeners are closed last, after which the app context is
+// cancelled to retire the reaper and any pub/sub relay.
+func (a *App) Shutdown(ctx context.Context) error {
+	if a.httpSrv != nil {
+		a.httpSrv.SetKeepAlivesEnabled(false)
+		if err := a.httpSrv.Shutdown(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+	}
+	if a.grpcSrv != nil {
+		stopped := make(chan struct{})
+		go func() {
+			a.grpcSrv.GracefulStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-ctx.Done():
+			a.grpcSrv.Stop()
+			<-stopped
+		}
+	}
+	if a.tcpLis != nil {
+		_ = a.tcpLis.Close()
+	}
+	if a.udpConn != nil {
+		_ = a.udpConn.Close()
+	}
+	if a.store != nil {
+		_ = a.store.Shutdown()
+	}
+	a.cancel()
+	return nil
+}
+```
+
+Both fixes are in `internal/app/` and were committed after Task 44 as
+`fix(app): drain http first and bound the grpc graceful stop` and
+`fix(app): drop idle client connections before draining in tests`.
+
+**Lesson for the implementer:** a single green run proves nothing about a suite that
+is 12% flaky. Run the package at least twenty times before declaring a gate green, and
+when a failure names a teardown step, dump the goroutines instead of re-reading the
+assertion that "failed" — the failing test was never the broken one.
+
+---
+
 ## 14. Validation summary
 
 Run these in order; each is a real gate, not a formality.
@@ -8663,6 +8800,7 @@ to run and means nothing.
 | Unauthenticated public endpoint gets abused | Medium | Per-IP rent limit, global dumpster cap, body/record/event caps, no outbound requests, no code execution. Not a defence against a determined attacker — it is a speed bump, and D8 says so. |
 | Dumps contain secrets | Certain | The UI states the link is public, the README repeats it. No redaction: silently masking headers would make the tool lie, which is worse for a debugger. |
 | `text/event-stream` behind a buffering proxy | Medium | `X-Accel-Buffering: no` + immediate `Flush()`. If fields still arrive in one burst, the proxy is buffering and the fix is on the proxy. |
+| `TestHTTPIngestAcceptsEveryMethod` failed once at exactly 3.00 s in a full-package run | Observed once; not reproducible in 22 subsequent runs (12 isolated, 10 full-package) | That 3 s figure is the test's own teardown deadline, and the failure coincided with a concurrent image build. Re-run the package before investigating; if it ever recurs in isolation, suspect a handler outliving the drain |
 | Deeply nested JSON bodies blow up `encoding/json` | Low | Body cap is 1 MiB, and `Decoded.Value` is `any` — memory is bounded by the body, not by nesting in a dangerous way; Go's decoder handles depth. |
 | Memory grows with many open WS/SSE connections | Medium | Each connection is a goroutine plus a 128-message channel; 10 000 idle sockets is tens of MB, acceptable. TCP idle timeout is 90 s. No global connection cap — **known gap**, see OQ-4. |
 | UUIDv7 collisions | Negligible | 74 random bits per millisecond; `Create` retries 5 times on the impossible case. |
