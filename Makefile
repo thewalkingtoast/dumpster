@@ -11,3 +11,4 @@ run:   ; $(DEV) go run ./cmd/dumpster
 fmt:   ; $(DEV) go fmt ./...
 tidy:  ; $(DEV) go mod tidy
 smoke: ; $(DEV) sh 'APP_URL=http://127.0.0.1:8080 bash scripts/smoke.sh'
+down:  ; $(DEV) down

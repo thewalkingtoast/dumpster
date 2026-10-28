@@ -1,0 +1,51 @@
+# The development stack. `docker compose up` here is NOT how you run the app for
+# real — that is ./compose.yaml. This stack exists to give you:
+#   * Redis on localhost:6380 (for the redis backend, without touching your own)
+#   * a `dumpster-dev` container with the source mounted and the Go toolchain warm
+#     and the HTTP/gRPC/TCP/UDP ports published, so `go run` is reachable from the Mac
+name: dumpster-dev
+
+services:
+  redis:
+    image: redis:7-alpine
+    # No persistence on purpose: local dev wants a clean yard on every restart.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6380:6379"          # 6380 so it cannot fight a redis you already run
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  dev:
+    image: golang:1.27.3
+    container_name: dumpster-dev
+    working_dir: /src
+    command: ["sleep", "infinity"]
+    volumes:
+      # SRC_DIR must be the path as the DOCKER DAEMON sees it, not as this shell
+      # sees it. scripts/dev.sh sets it per mode; by hand from the host it is:
+      #   SRC_DIR=$HOME/Developer/dumpster docker compose -f compose.dev.yaml up -d
+      - ${SRC_DIR:-.}:/src
+      - go-mod:/go/pkg/mod
+      - go-cache:/root/.cache/go-build
+    environment:
+      CGO_ENABLED: "0"
+      GOFLAGS: "-mod=mod"
+      # `make run` in this container therefore uses Redis; unset it to use memory.
+      DUMPSTER_REDIS_URL: redis://redis:6379/0
+      DUMPSTER_BASE_URL: http://localhost:8080
+      DUMPSTER_TTL: 1h          # short locally, so expiry is easy to watch
+    ports:
+      - "8080:8080"   # http + websocket + sse
+      - "8081:8081"   # grpc
+      - "8082:8082"   # raw tcp
+      - "8083:8083"   # raw udp
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  go-mod:
+  go-cache:
