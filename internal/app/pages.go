@@ -96,11 +96,9 @@ func (a *App) handleDumpsterPage(w http.ResponseWriter, r *http.Request) {
 		"ID":        d.ID,
 		"Origin":    a.BaseURL(),
 		"ExpiresAt": d.ExpiresAt.UTC().Format(time.RFC3339),
-		// The gRPC/TCP/UDP listeners do not exist until Phases 6-8, so advertise
-		// the configured ports; Task 31 swaps these for the bound addresses.
-		"PublicGRPC": a.publicAddr(a.cfg.PublicGRPC, a.cfg.GRPCAddr),
-		"PublicTCP":  a.publicAddr(a.cfg.PublicTCP, a.cfg.TCPAddr),
-		"PublicUDP":  a.publicAddr(a.cfg.PublicUDP, a.cfg.UDPAddr),
+		"PublicGRPC": a.publicAddr(a.cfg.PublicGRPC, a.Addrs().GRPC),
+		"PublicTCP":  a.publicAddr(a.cfg.PublicTCP, a.Addrs().TCP),
+		"PublicUDP":  a.publicAddr(a.cfg.PublicUDP, a.Addrs().UDP),
 	})
 }
 
