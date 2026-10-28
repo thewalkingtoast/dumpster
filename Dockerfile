@@ -35,7 +35,8 @@ USER dumpster
 EXPOSE 8080 8081 8082
 EXPOSE 8083/udp
 
-# Many PaaS health checkers use their own probe instead; docker and compose honour it.
+# Many PaaS health checkers use their own probe and ignore this; docker and
+# compose honour it.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
 

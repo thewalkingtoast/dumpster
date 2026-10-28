@@ -1,51 +1,86 @@
 # Dumpster
 
-Rent a bucket, throw requests at it, watch them land. One link accepts HTTP,
-gRPC, WebSocket, SSE, raw TCP and raw UDP, and shows everything in one live,
-newest-first list. Dumpsters delete themselves after 12 hours. There is no
-account, and no authentication: **the UUID in the URL is the only secret**.
+**Throw requests at it and watch them land.** One link accepts HTTP, gRPC,
+WebSocket, SSE, raw TCP and raw UDP, and shows everything in a single live,
+newest-first list. Dumpsters burn themselves after 3 hours. No accounts, no
+signup — **the UUID in the URL is the only secret**.
 
-## Run
+## ▶ Try it now: [dumpster.toastsnacks.dev](https://dumpster.toastsnacks.dev)
 
-```bash
-make up      # create the docker dev container (once)
-make run     # http://localhost:8080
-```
+Rent one, paste the link into anything that speaks a protocol, and watch the row
+appear. That instance is the same binary this repo builds.
 
-Everything runs in a container: `scripts/dev.sh` keeps a `dumpster-dev` container
-with the repo bind-mounted and the module cache warm. `./scripts/dev.sh mode` tells
-you what it found.
+---
 
-## Test
+## What it is
 
-```bash
-make test     # ./scripts/dev.sh go test ./... -count=1
-make vet      # ./scripts/dev.sh go vet ./...
-make smoke    # end-to-end against a running server inside the container
-```
+A debugging sink for things that are hard to watch: webhooks you can't see, a
+device that won't tell you what it sent, a gRPC call whose payload you can't
+inspect, a WebSocket frame you're sure you're sending. Instead of a packet
+capture and a shrug, you get one page with every request in order, each one
+expandable: headers, timings, remote address, raw body, and a decoded view when
+the content type is JSON, form-urlencoded, multipart or plain text.
 
-## How a dumpster is addressed
+One Go process, four listeners, no database, no JavaScript build step.
 
-| Protocol | Address |
+| Port | Speaks |
 | --- | --- |
-| HTTP | `POST http://host:8080/d/<uuid>/any/path` — any method, any path, body kept |
-| SSE | `curl -N 'http://host:8080/d/<uuid>/sse'` listens; `POST /d/<uuid>/sse/emit?count=5` makes the dumpster send |
-| WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded, every frame echoed |
-| gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method plus `x-dumpster-id` metadata |
-| TCP | `:8082`, first line is the uuid, everything after is payload |
-| UDP | `:8083/udp`, first 36 bytes are the uuid, optionally followed by `\|` |
+| `8080` | HTTP, WebSocket, SSE, and the web UI |
+| `8081` | gRPC (h2c, or TLS with a certificate) |
+| `8082` | raw TCP |
+| `8083` | raw UDP |
+
+Anything sent to any of them lands in the same list, tagged with its protocol.
+
+## Quick start
 
 ```bash
-# http
-curl -X POST "http://localhost:8080/d/$ID/anything" -H 'Content-Type: application/json' -d '{"hello":"dumpster"}'
+docker build -t dumpster:local .
+docker run -d --name dumpster \
+  -p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083/udp \
+  dumpster:local
+# → http://localhost:8080
+```
 
-# sse — two halves: the shell listens, the POST makes the dumpster send
-curl -N "http://localhost:8080/d/$ID/sse" &          # hold this open first
+Or straight from source, no container:
+
+```bash
+go run ./cmd/dumpster          # http://localhost:8080
+```
+
+> **`8083` must be published as `8083:8083/udp`.** A bare `-p 8083:8083` publishes
+> TCP only, and every datagram is silently dropped by the host before it reaches
+> the process. The page just stays empty and nothing anywhere reports an error.
+
+## Using it
+
+Rent a dumpster from the landing page — you get `http://host:8080/d/<uuid>`.
+
+| Protocol | How to reach it |
+| --- | --- |
+| HTTP | any method, any path under `/d/<uuid>/…` |
+| WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded and echoed |
+| SSE | `GET /d/<uuid>/sse` listens, `POST /d/<uuid>/sse/emit` makes it send |
+| gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method with `x-dumpster-id` metadata |
+| TCP | `host:8082` — first line is the uuid, everything after is payload |
+| UDP | `host:8083/udp` — first 36 bytes are the uuid, then optionally a pipe character (`0x7C`) |
+
+```bash
+ID=<your-uuid>
+
+# http
+curl -X POST "http://localhost:8080/d/$ID/anything" \
+  -H 'Content-Type: application/json' -d '{"hello":"dumpster"}'
+
+# websocket (needs websocat)
+websocat "ws://localhost:8080/d/$ID/ws"
+
+# sse — the terminal listens, the POST makes the dumpster send
+curl -N "http://localhost:8080/d/$ID/sse" &
 curl -X POST "http://localhost:8080/d/$ID/sse/emit?count=5&data=hello"
 wait
 
-# grpc (needs grpcurl)
-# add -insecure in place of -plaintext when the server runs with -tls
+# grpc (needs grpcurl; use -insecure instead of -plaintext when the server runs with -tls)
 grpcurl -plaintext -import-path examples -proto dumpster.proto \
   -H "x-dumpster-id: $ID" -d '{"payload":"aGVsbG8="}' \
   localhost:8081 dumpster.Ingest/Anything
@@ -53,102 +88,229 @@ grpcurl -plaintext -import-path examples -proto dumpster.proto \
 # tcp
 printf '%s\nhello\n' "$ID" | nc localhost 8082
 
-# udp  (-u is mandatory; the first 36 bytes are the uuid, then a separator)
+# udp — -u is mandatory, and nothing prints; the row appears in the page
 printf '%s|hello' "$ID" | nc -u -w1 localhost 8083
-# nothing prints — UDP is fire-and-forget. The row appears in the page.
 
-# read a dumpster as JSON
-curl -s "http://localhost:8080/d/$ID/_records.json" | python3 -m json.tool
+# the whole dumpster as JSON (gzipped if you ask for it)
+curl -s --compressed "http://localhost:8080/d/$ID/_records.json" | python3 -m json.tool
 ```
 
-### Publishing the ports
+SSE is deliberately two halves. The dashboard **posts** to emit rather than
+opening an `EventSource` itself: a page that both listened and emitted would
+receive its own events as rows *and* as streamed messages, and every row would
+appear twice.
 
-`8080`–`8082` are TCP; **`8083` is UDP and must be published as `8083:8083/udp`**.
-A bare `-p 8083:8083` publishes TCP only, and UDP datagrams are then silently
-dropped by the host before they ever reach the process — the page simply stays
-empty. Both compose files already do this correctly.
+### The page
+
+- Newest first, prepended live over a WebSocket that reconnects by itself if it drops.
+- Every row shows protocol, time to the millisecond, and a self-updating age.
+- Click any detail block to copy it. Works on plain HTTP too, where
+  `navigator.clipboard` is unavailable and a textarea fallback is used.
+- Each protocol's copy-paste example is generated for *this* dumpster and follows
+  your TLS setting (`wss://` vs `ws://`, `grpcurl -insecure` vs `-plaintext`).
 
 ## Configuration
 
-Flags wins over `DUMPSTER_*` env, env wins over defaults.
+Precedence: **flags → `DUMPSTER_*` environment → defaults**. Every knob has an
+environment variable, so nothing needs a config file.
 
-| Flag | Env | Default |
-| --- | --- | --- |
-| `-http` | `DUMPSTER_HTTP_ADDR` | `:8080` |
-| `-grpc` | `DUMPSTER_GRPC_ADDR` | `:8081` |
-| `-tcp` | `DUMPSTER_TCP_ADDR` | `:8082` |
-| `-udp` | `DUMPSTER_UDP_ADDR` | `:8083` |
-| `-ttl` | `DUMPSTER_TTL` | `3h` |
-| `-max-body` | `DUMPSTER_MAX_BODY` | `1048576` |
-| `-base-url` | `DUMPSTER_BASE_URL` | derived from the bound port |
-| `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off |
-| `-trust-real-ip` | `DUMPSTER_TRUST_REAL_IP` | off |
-| `-tls` | `DUMPSTER_TLS` | off — gRPC is h2c, examples say `ws://` |
-| `-grpc-tls-cert` / `-grpc-tls-key` | `DUMPSTER_GRPC_TLS_CERT` / `_KEY` | unset — plaintext h2c |
-| `-ingest-per-minute` | `DUMPSTER_INGEST_PER_MINUTE` | `600` |
-| `-max-conns-per-ip` | `DUMPSTER_MAX_CONNS_PER_IP` | `64` |
-| `-max` | `DUMPSTER_MAX_DUMPSTERS` | `50000` |
-| `-max-per-ip` | `DUMPSTER_MAX_PER_IP` | `500` |
-| — | `DUMPSTER_RENT_PER_HOUR` | `10` |
-| `-redis` | `DUMPSTER_REDIS_URL` | unset — memory backend |
-
-### What a record keeps
-
-A record keeps at most **64 KiB of the raw body** and **64 KiB of the decoded
-preview** (JSON, form, multipart or text). The real sizes are always recorded —
-`body_bytes` and `decoded.bytes` — and `truncated: true` marks a field that is a
-sample rather than the whole thing. Without that cap a single 1 MiB request cost
-2.9 MB resident; with it, a record costs about 130 KB, so a dumpster full of 1 MiB
-payloads holds ~65 MB instead of ~1.4 GB.
-
-`/_records.json` is gzipped when the client sends `Accept-Encoding: gzip`
-(typically ~4×; a 500-record snapshot is tens of megabytes otherwise). SSE and
-WebSocket responses are never buffered through the compressor.
-
-### Byte budgets
-
-Counts alone do not bound memory — they multiply. 500 records × 131 KB × 50,000
-dumpsters is terabytes however small each cap looks, so there are two ceilings
-measured in bytes:
+### Listeners
 
 | Flag | Env | Default | Meaning |
 | --- | --- | --- | --- |
-| `-max-bytes-per-dumpster` | `DUMPSTER_MAX_BYTES_PER_DUMPSTER` | 8 MiB | retained records per dumpster; oldest evicted first |
-| `-max-bytes` | `DUMPSTER_MAX_BYTES` | 4 GiB | retained records across the whole board |
+| `-http` | `DUMPSTER_HTTP_ADDR` | `:8080` | HTTP, WebSocket, SSE and the UI |
+| `-grpc` | `DUMPSTER_GRPC_ADDR` | `:8081` | gRPC listener |
+| `-tcp` | `DUMPSTER_TCP_ADDR` | `:8082` | raw TCP listener |
+| `-udp` | `DUMPSTER_UDP_ADDR` | `:8083` | raw UDP listener |
 
-Per-dumpster overrun drops the **oldest** records, which is the end of a
-newest-first page nobody is reading. Board overrun does not refuse traffic: the
-record is still written, but only its shape — headers, timings, `body_bytes` —
-survives, marked `"body_skipped": true`. A debug tool that stops recording when
-things go wrong is a debug tool that fails when you need it.
+### Addresses shown to users
 
-Both ceilings apply to the in-memory backend, which is where the memory is.
-Records in Redis live outside this process; use Redis `maxmemory` there, and the
-server logs a warning at startup if you set a byte budget alongside `-redis`.
+Important behind a proxy: the bound address is rarely the address a human should
+type. If these are unset, the app derives them from the bind port, which is wrong
+the moment something proxies it.
 
-Sizes are approximated from the retained strings rather than by re-encoding each
-record, because encoding on the ingest path would cost more than the memory it
-measures.
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-base-url` | `DUMPSTER_BASE_URL` | derived | external origin for links, e.g. `https://dumpster.example` |
+| `-public-grpc` | `DUMPSTER_PUBLIC_GRPC` | derived | address printed in the gRPC example |
+| `-public-tcp` | `DUMPSTER_PUBLIC_TCP` | derived | address printed in the TCP example |
+| `-public-udp` | `DUMPSTER_PUBLIC_UDP` | derived | address printed in the UDP example |
+
+### TLS
+
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-tls` | `DUMPSTER_TLS` | off | This app is reachable over TLS. Makes gRPC **require** a certificate and makes the page advertise `wss://` |
+| `-grpc-tls-cert` | `DUMPSTER_GRPC_TLS_CERT` | unset | PEM certificate for the gRPC listener |
+| `-grpc-tls-key` | `DUMPSTER_GRPC_TLS_KEY` | unset | PEM key for the gRPC listener |
+
+`-tls` is the single statement of intent, so the listener and the page cannot
+disagree. Three configurations are refused at startup rather than guessed at:
+`-tls` with no certificate, a certificate without `-tls`, and half a cert/key pair.
+A TLS story that disagrees with itself is worse than a plaintext one that is
+honest about it.
+
+### Lifetimes and sizes
+
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-ttl` | `DUMPSTER_TTL` | `3h` | how long a dumpster lives before it is destroyed |
+| `-max-body` | `DUMPSTER_MAX_BODY` | `1 MiB` | bytes of body kept per request |
+| `-max-bytes-per-dumpster` | `DUMPSTER_MAX_BYTES_PER_DUMPSTER` | `8 MiB` | retained records per dumpster; oldest evicted first |
+| `-max-bytes` | `DUMPSTER_MAX_BYTES` | `4 GiB` | retained records across the whole board |
+| — | `DUMPSTER_MAX_RECORDS` | `500` | records per dumpster |
+| — | `DUMPSTER_MAX_EVENTS` | `500` | events kept per record (SSE messages, WebSocket frames) |
+| — | `DUMPSTER_REAP_EVERY` | `1m` | how often expired dumpsters are swept |
+| — | `DUMPSTER_CONN_IDLE` | `90s` | idle timeout for raw TCP/WebSocket connections |
+
+### Abuse ceilings
+
+There is no authentication, so every knob here exists so one caller cannot ruin
+the party for everyone else. All are per client address.
+
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-max` | `DUMPSTER_MAX_DUMPSTERS` | `50000` | live dumpsters across the whole board |
+| `-max-per-ip` | `DUMPSTER_MAX_PER_IP` | `500` | live dumpsters per address |
+| `-ingest-per-minute` | `DUMPSTER_INGEST_PER_MINUTE` | `600` | requests/frames/datagrams per address per minute |
+| `-max-conns-per-ip` | `DUMPSTER_MAX_CONNS_PER_IP` | `64` | concurrent TCP/WebSocket/SSE sessions per address |
+| — | `DUMPSTER_RENT_PER_HOUR` | `10` | how many dumpsters one address may rent per hour |
+
+A rate limit and a connection cap are not the same control, which is why both
+exist: a caller who opens connections slowly never trips a rate limit, and a
+caller who opens thousands at once is only stopped by the count.
+
+### Client address and proxies
+
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off | believe the first `X-Forwarded-For` hop |
+| `-trust-real-ip` | `DUMPSTER_TRUST_REAL_IP` | off | believe `X-Real-IP` |
+
+Both are off by default because both are spoofable if the app is reachable
+directly. Turn on **exactly one**, and only if the proxy in front overwrites the
+header rather than appending to it — see [Deploying](#deploying).
 
 ### Storage
 
-By default dumpsters live in the process's memory: fast, zero dependencies, and
-gone when the process stops. Set `DUMPSTER_REDIS_URL` (or `-redis`) to use Redis
-instead, which gives you two things:
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-redis` | `DUMPSTER_REDIS_URL` | unset | use Redis instead of in-memory storage |
+| — | `DUMPSTER_INSTANCE_ID` | random | instance identity for Pub/Sub self-echo filtering |
 
-- **Survival across restarts** — only with `appendonly yes`; the compose file sets it.
-- **Multiple app instances** — the store is shared and dashboard updates are relayed
-  over Redis Pub/Sub, so a page on instance B sees traffic that landed on instance A.
+In-memory is the default: fast, no dependencies, and gone when the process stops.
+Redis buys two things — survival across restarts (only with `appendonly yes`) and
+multiple app instances behind a load balancer, since dashboard updates are relayed
+over Pub/Sub. `/healthz` returns `503` with the reason when the backend is
+unreachable; a dead Redis otherwise makes every dumpster read as "gone".
 
-`/healthz` returns `503` with the reason when the backend is unreachable. A dead
-Redis makes every dumpster read as "gone" — check `/healthz` before you believe it.
+## Deploying
+
+One binary, four ports. Put a reverse proxy in front of `8080` for TLS, and
+publish `8081`–`8083` directly if you want those protocols — no HTTP proxy will
+carry them.
+
+1. **Reverse proxy in front of 8080.** Terminate TLS there. WebSocket needs the
+   usual `Upgrade`/`Connection` headers passed through (nginx:
+   `proxy_http_version 1.1` plus `proxy_set_header Upgrade $http_upgrade;`).
+2. **Raise the proxy's idle timeout.** nginx's default `proxy_read_timeout` is
+   60 s, which cuts SSE streams and idle WebSockets at exactly a minute. The app
+   sends an SSE keep-alive comment every 15 s, so SSE survives; WebSockets need
+   the timeout raised (`proxy_read_timeout 3600s;`).
+3. **Tell it what it is.** `-tls` (with a certificate for the gRPC port) so the
+   page advertises `wss://` and gRPC enforces TLS; `-base-url` and the
+   `-public-*` addresses so the examples show the real hostname.
+4. **Choose your header.** If the proxy *overwrites* `X-Forwarded-For` with the
+   socket address (nginx's `proxy_set_header X-Forwarded-For $remote_addr;`,
+   which is what many PaaS nginx templates do), set `-trust-proxy`. If it
+   *appends* (the common `$proxy_add_x_forwarded_for`), do **not** trust it — a
+   client can prepend its own hop. With nginx, either overwrite it or set
+   `X-Real-IP $remote_addr` and use `-trust-real-ip`.
+5. **Publish UDP properly.** `8083:8083/udp`. See the warning above; this is the
+   single most common "it doesn't work" report.
+6. **Keep the container non-root and the certificate readable.** The image runs
+   as uid 10001. A certificate mounted `600` and owned by another user is
+   unreadable, and the process exits at startup with a clear error rather than
+   serving plaintext. Use an ACL or group ownership rather than `chmod 644`.
+
+**If using Cloudflare, ensure your domain is not proxied** (grey cloud / "DNS
+only"). Two reasons: the proxy only carries HTTP and HTTPS, so raw TCP and UDP
+silently stop working; and it rewrites the client address, so every record shows a
+Cloudflare edge IP and your per-IP limits throttle the whole internet as a single
+caller. Cloudflare's idle timeout would also cut silent SSE streams.
+
+Health check: `GET /healthz` → `200 {"ok":true}`, or `503` with a reason.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| UDP rows never appear, no error anywhere | port published TCP-only | publish `8083:8083/udp` |
+| Every SSE stream dies after ~60 s | proxy idle timeout | raise the proxy's read timeout; the app already sends keep-alives |
+| WebSocket closes when nobody is talking | same idle timeout | raise `proxy_read_timeout` |
+| `wss://` fails from an HTTPS page | page advertises `ws://` | run with `-tls` |
+| gRPC: `error reading server preface` | TLS client against a plaintext listener | drop `-insecure`, or start the server with `-tls` |
+| gRPC: `authentication handshake failed: first record does not look like a TLS handshake` | plaintext client against a TLS listener | add `-insecure` (grpcurl) or `-tls` (`cmd/grpcping`) |
+| Process exits: *"-tls is on but grpc needs both a cert and a key"* | TLS on, no certificate | supply both, or turn `-tls` off |
+| Process exits: *"grpc tls cert/key set but -tls is off"* | certificate with the switch off | add `-tls` or remove the certificate |
+| Process exits: *"grpc tls: no such file"* | container can't read the cert | fix ownership/ACL for uid 10001 |
+| `403` from `/sse/emit` | missing or stale CSRF token | use the token from that dumpster's page |
+| `429` "too many requests" with `Retry-After` | `-ingest-per-minute` exceeded | wait, or raise the limit |
+| `429` "Your yard is full" | `-max-per-ip` reached | expire old dumpsters or raise the limit |
+| `429` on the landing page | `DUMPSTER_RENT_PER_HOUR` | wait an hour |
+| A record has `body_bytes` but `body_skipped: true` | board byte budget | raise `-max-bytes` |
+| Body is present but `truncated: true` | 64 KiB preview / `-max-body` cap | raise `-max-body` |
+| Every dumpster reads "gone" after a redeploy | in-memory backend | that is the design; use Redis to persist |
+| The wrong client IP is recorded | proxy header trust | see step 4 above; check `remote.forwarded_for` and `remote.x_real_ip` |
+| Cross-origin `fetch` gets no records | wildcard CORS is scoped to `/d/<uuid>/<subpath>` | request a subpath, not the HTML page |
+| Page renders but assets 404 after an upgrade | stale browser cache | hard-refresh (Cmd/Ctrl-Shift-R) |
 
 ## Limits, on purpose
 
-- 1 MiB of body per request (anything longer is truncated and flagged, never rejected)
-- 500 records per dumpster, 500 events per record — oldest dropped first
-- 10 000 dumpsters globally, 10 rentals per hour per IP
-- In memory by default: restarting the process empties the yard (see Storage to persist)
+- Body and decoded preview are each capped at 64 KiB per record; the true sizes
+  are always recorded, and `truncated: true` marks a sample rather than the whole.
+  Without the cap a single 1 MiB request cost 2.9 MB resident; with it, ~130 KB.
+- Counts do not bound memory — they multiply. Hence the two byte budgets.
+  Per-dumpster overrun drops the oldest records; board overrun keeps the record's
+  shape (headers, timings, sizes) and skips the body, marked `body_skipped: true`.
+  A debug tool that stops recording when things go wrong fails exactly when you
+  need it.
+- Sizes are approximated from retained strings rather than re-encoding every
+  record: encoding on the ingest path would cost more than the memory it measures.
 
-Requests are public to anyone holding the link. Do not dump production secrets
-into one.
+## Security model
+
+There are no accounts. Anyone holding a dumpster URL can read everything sent to
+it, and dumpsters are public by design — **do not point production credentials or
+customer data at one.** TLS protects the wire in transit; it does not decide who
+may look. The controls that matter are the TTL, the per-address ceilings, and
+keeping the process behind a proxy you control.
+
+CSRF tokens guard the actions that spend resources (renting, emitting SSE). The
+landing page and the debug page cannot be framed (`X-Frame-Options: DENY` plus
+`frame-ancestors 'none'`), and wildcard CORS is granted only to
+`/d/<uuid>/<subpath>` — the ingest surface — never to the HTML pages that carry a
+token.
+
+## Development
+
+```bash
+make test     # go test ./... -count=1
+make vet      # go vet ./...
+make build    # go build ./...
+make fmt      # go fmt ./...
+make image    # docker build, stamped with the current git SHA
+make smoke    # end-to-end against a running instance
+make up/down  # local dev container (repo bind-mounted, module cache warm)
+```
+
+Handy companions in `cmd/`: `grpcping` (one gRPC message, no `.proto` needed —
+`-tls` for a TLS listener) and `loadgen` (concurrent load across protocols).
+
+The binary stamps its own release at build time; the startup log line reads
+`msg="dumpster up" version=<sha>`, which is the fastest way to tell what is
+actually running.
+
+## License
+
+No license file yet — add one before you rely on this for anything.
