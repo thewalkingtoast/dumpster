@@ -253,7 +253,16 @@ carry them.
    `X-Real-IP $remote_addr` and use `-trust-real-ip`.
    With `-trust-proxy` on, `X-Forwarded-Proto: https` also marks the record as
    TLS (`"tls": true, "tls_via": "proxy"`) — otherwise a `wss://` client behind
-   nginx looks like plaintext, because the app only sees the proxy's hop.
+   nginx looks like plaintext, because the app only sees the proxy's hop. The
+   TLS server name (`tls_sni`) is only recorded when the proxy forwards it:
+
+   ```nginx
+   proxy_set_header X-SSL-Server-Name $ssl_server_name;
+   ```
+
+   Without that header the field stays empty: SNI and `Host` are not the same
+   thing, and a debugger that confuses them is worse than one that admits it does
+   not know.
 5. **Publish UDP properly.** `8083:8083/udp`. See the warning above; this is the
    single most common "it doesn't work" report.
 6. **Keep the container non-root and the certificate readable.** The image runs

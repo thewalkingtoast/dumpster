@@ -151,6 +151,25 @@ func clientTLS(r *http.Request, trustProxy bool) (bool, string) {
 	return false, ""
 }
 
+// sniFromProxy accepts a forwarded SNI only if it looks like the one thing SNI can
+// be: a hostname. Anything else is a header of unknown provenance being carried
+// into a record a human will read, so it is dropped rather than shown.
+func sniFromProxy(raw string) string {
+	name := strings.TrimSpace(raw)
+	if name == "" || len(name) > 253 {
+		return ""
+	}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '.', r == '-', r == '_':
+		default:
+			return ""
+		}
+	}
+	return strings.ToLower(name)
+}
+
 func remoteFrom(r *http.Request, trustProxy, trustRealIP bool) model.Remote {
 	rem := model.Remote{Addr: r.RemoteAddr, IP: r.RemoteAddr}
 	if host, port, err := net.SplitHostPort(r.RemoteAddr); err == nil {
@@ -162,7 +181,15 @@ func remoteFrom(r *http.Request, trustProxy, trustRealIP bool) model.Remote {
 	if tls, via := clientTLS(r, trustProxy); tls {
 		rem.TLS, rem.TLSVia = true, via
 		if r.TLS != nil {
+			// The app did the handshake, so the SNI is whatever the client sent.
 			rem.TLSSNI = r.TLS.ServerName
+		} else {
+			// The proxy did it. nginx can forward $ssl_server_name; nothing else
+			// about the handshake survives the hop, so an absent header leaves this
+			// empty rather than guessing from Host — SNI and Host are not the same
+			// thing, and a debugger that confuses them is worse than one that admits
+			// it does not know.
+			rem.TLSSNI = sniFromProxy(r.Header.Get("X-SSL-Server-Name"))
 		}
 	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
