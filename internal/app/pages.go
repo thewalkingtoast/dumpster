@@ -103,7 +103,7 @@ func humanDuration(d time.Duration) string {
 
 // clientIP is the address used for rate limiting.
 func (a *App) clientIP(r *http.Request) string {
-	return remoteFrom(r, a.cfg.TrustProxy).IP
+	return remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP).IP
 }
 
 // handleDumpsterPage renders the shell; the JS fills the list from

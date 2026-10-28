@@ -19,6 +19,13 @@ func (a *App) handleWSIngest(w http.ResponseWriter, r *http.Request, sid string)
 		return
 	}
 
+	release, admitted := a.admitConn(a.clientIP(r))
+	if !admitted {
+		http.Error(w, "too many open connections from this address", http.StatusTooManyRequests)
+		return
+	}
+	defer release()
+
 	// InsecureSkipVerify disables the origin check: this endpoint exists to be
 	// hit by arbitrary clients, including browsers on other origins.
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -35,7 +42,7 @@ func (a *App) handleWSIngest(w http.ResponseWriter, r *http.Request, sid string)
 	rec := &model.Record{
 		Kind:       model.KindWS,
 		ReceivedAt: start,
-		Remote:     remoteFrom(r, a.cfg.TrustProxy),
+		Remote:     remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP),
 		Req:        requestEnvelope(r, "/ws"),
 		Timing:     timingFrom(r, start),
 		Meta:       map[string]string{"subprotocol": c.Subprotocol()},

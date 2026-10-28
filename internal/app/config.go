@@ -44,7 +44,13 @@ type Config struct {
 	MaxBytes            int
 	RentPerHour         int
 	ConnIdle            time.Duration
-	TrustProxy          bool
+	TrustProxy          bool // trust the first X-Forwarded-For hop: only safe if the proxy overwrites it
+	TrustRealIP         bool // trust X-Real-IP: the header nginx writes from the socket
+
+	// Abuse ceilings. Renting was always limited; consuming was not, and the raw
+	// ports have no other protection in front of them.
+	IngestPerMinute int
+	MaxConnsPerIP   int
 }
 
 // DefaultConfig is the configuration the plan's expected outputs assume.
@@ -66,8 +72,11 @@ func DefaultConfig() Config {
 
 		MaxBytesPerDumpster: 8 << 20, // 8 MiB of records per dumpster
 		MaxBytes:            4 << 30, // 4 GiB across the whole board
-		RentPerHour:         10,
-		ConnIdle:            90 * time.Second,
+
+		IngestPerMinute: 600, // ~10/s sustained per address
+		MaxConnsPerIP:   64,  // concurrent tcp/websocket/sse sessions
+		RentPerHour:     10,
+		ConnIdle:        90 * time.Second,
 	}
 }
 
@@ -130,11 +139,20 @@ func (c Config) FromEnv() Config {
 	if v, ok := intEnv("DUMPSTER_MAX_BYTES"); ok {
 		c.MaxBytes = v
 	}
+	if v, ok := intEnv("DUMPSTER_INGEST_PER_MINUTE"); ok {
+		c.IngestPerMinute = v
+	}
+	if v, ok := intEnv("DUMPSTER_MAX_CONNS_PER_IP"); ok {
+		c.MaxConnsPerIP = v
+	}
 	if v, ok := intEnv("DUMPSTER_RENT_PER_HOUR"); ok {
 		c.RentPerHour = v
 	}
 	if v := os.Getenv("DUMPSTER_TRUST_PROXY"); v != "" {
 		c.TrustProxy = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("DUMPSTER_TRUST_REAL_IP"); v != "" {
+		c.TrustRealIP = v == "1" || strings.EqualFold(v, "true")
 	}
 	return c
 }

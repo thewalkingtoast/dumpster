@@ -121,7 +121,7 @@ func readBody(body io.Reader, max int) (data []byte, truncated bool) {
 // remoteFrom describes the caller. With trustProxy set, the first
 // X-Forwarded-For hop becomes the reported IP, but the raw socket address and
 // the header itself are always preserved.
-func remoteFrom(r *http.Request, trustProxy bool) model.Remote {
+func remoteFrom(r *http.Request, trustProxy, trustRealIP bool) model.Remote {
 	rem := model.Remote{Addr: r.RemoteAddr, IP: r.RemoteAddr}
 	if host, port, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		rem.IP = host
@@ -140,6 +140,15 @@ func remoteFrom(r *http.Request, trustProxy bool) model.Remote {
 			if net.ParseIP(first) != nil {
 				rem.IP = first
 			}
+		}
+	}
+	// X-Real-IP is preferred over X-Forwarded-For when both are offered: nginx
+	// writes it from the socket, so a client cannot prepend a hop of its own the
+	// way it can with an appended X-Forwarded-For.
+	if real := strings.TrimSpace(r.Header.Get("X-Real-IP")); real != "" {
+		rem.RealIP = real
+		if trustRealIP && net.ParseIP(real) != nil {
+			rem.IP = real
 		}
 	}
 	return rem

@@ -26,7 +26,7 @@ func TestRemoteFromProxy(t *testing.T) {
 	r.RemoteAddr = "10.0.0.9:5555"
 	r.Header.Set("X-Forwarded-For", "203.0.113.7, 10.0.0.1")
 
-	direct := remoteFrom(r, false)
+	direct := remoteFrom(r, false, false)
 	if direct.IP != "10.0.0.9" || direct.Port != 5555 {
 		t.Fatalf("direct = %+v", direct)
 	}
@@ -34,7 +34,7 @@ func TestRemoteFromProxy(t *testing.T) {
 		t.Fatal("the raw X-Forwarded-For must always be kept")
 	}
 
-	proxied := remoteFrom(r, true)
+	proxied := remoteFrom(r, true, false)
 	if proxied.IP != "203.0.113.7" {
 		t.Fatalf("proxied ip = %q, want 203.0.113.7", proxied.IP)
 	}

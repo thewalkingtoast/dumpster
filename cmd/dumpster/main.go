@@ -28,9 +28,12 @@ func main() {
 	flag.IntVar(&cfg.MaxBody, "max-body", cfg.MaxBody, "bytes of body kept per request")
 	flag.IntVar(&cfg.MaxDumpsters, "max", cfg.MaxDumpsters, "global cap on live dumpsters (0 = none)")
 	flag.IntVar(&cfg.MaxPerIP, "max-per-ip", cfg.MaxPerIP, "cap on live dumpsters per address (0 = none)")
+	flag.IntVar(&cfg.IngestPerMinute, "ingest-per-minute", cfg.IngestPerMinute, "ingested items per address per minute (0 = none)")
+	flag.IntVar(&cfg.MaxConnsPerIP, "max-conns-per-ip", cfg.MaxConnsPerIP, "concurrent tcp/websocket/sse sessions per address (0 = none)")
 	flag.IntVar(&cfg.MaxBytesPerDumpster, "max-bytes-per-dumpster", cfg.MaxBytesPerDumpster, "retained bytes per dumpster (0 = none)")
 	flag.IntVar(&cfg.MaxBytes, "max-bytes", cfg.MaxBytes, "retained bytes across all dumpsters (0 = none)")
-	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "trust X-Forwarded-For for the reported client ip")
+	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "trust the first X-Forwarded-For hop (only if your proxy overwrites it)")
+	flag.BoolVar(&cfg.TrustRealIP, "trust-real-ip", cfg.TrustRealIP, "trust X-Real-IP for the reported client ip (what nginx writes)")
 	flag.StringVar(&cfg.RedisURL, "redis", cfg.RedisURL, "redis url; empty uses in-memory storage")
 	flag.Parse()
 

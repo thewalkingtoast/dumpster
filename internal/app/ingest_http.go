@@ -10,7 +10,18 @@ import (
 
 // handleHTTPIngest records any request aimed at /d/{id}/… . The endpoint is a
 // sink: it always answers 200 with the sequence number it assigned.
+// handleHTTPIngest rate-limits before anything is recorded: a flood must not
+// become dumpster content, and the raw ports have no proxy to absorb it.
 func (a *App) handleHTTPIngest(w http.ResponseWriter, r *http.Request, sid, sub string) {
+	if !a.admitIngest(a.clientIP(r)) {
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return
+	}
+	a.ingestHTTP(w, r, sid, sub)
+}
+
+func (a *App) ingestHTTP(w http.ResponseWriter, r *http.Request, sid, sub string) {
 	start := time.Now()
 	d, ok := a.mustDumpster(w, sid)
 	if !ok {
@@ -56,7 +67,7 @@ func (a *App) recordHTTP(d model.Dumpster, r *http.Request, sub string, start ti
 	rec := &model.Record{
 		Kind:       model.KindHTTP,
 		ReceivedAt: start,
-		Remote:     remoteFrom(r, a.cfg.TrustProxy),
+		Remote:     remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP),
 		Req:        req,
 		Timing: model.Timing{
 			ConnWaitUS: timing.ConnWaitUS,

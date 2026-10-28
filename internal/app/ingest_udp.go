@@ -34,6 +34,9 @@ func (a *App) handleUDPDatagram(packet []byte, addr net.Addr) {
 	if len(packet) < 36 {
 		return
 	}
+	if !a.admitIngest(ipFromAddr(addr)) {
+		return // dropped: a datagram sender cannot be told to slow down
+	}
 	canonical, err := id.Canonical(string(packet[:36]))
 	if err != nil {
 		return

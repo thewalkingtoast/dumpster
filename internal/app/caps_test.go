@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/adam/dumpster/internal/model"
 )
 
 func TestYardIsFull(t *testing.T) {
@@ -108,5 +110,66 @@ func TestRateLimitedPageDoesNotOfferToRent(t *testing.T) {
 	}
 	if !strings.Contains(body, "Slow down") {
 		t.Fatalf("the page stopped explaining why:\n%s", body)
+	}
+}
+
+// Behind nginx, X-Real-IP is the address nginx *writes* from the socket, so it
+// cannot be spoofed through the proxy the way X-Forwarded-For can (nginx appends
+// to that, leaving a client-supplied hop first). It stays off by default because
+// a directly reachable app would let anyone claim any address.
+func TestRealIPIsTrustedOnlyWhenConfigured(t *testing.T) {
+	trusting := newTestApp(t, func(c *Config) { c.TrustRealIP = true })
+	id := rent(t, trusting)
+	res, err := http.Post(trusting.BaseURL()+"/d/"+id+"/x", "text/plain",
+		strings.NewReader("hi"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, trusting.BaseURL()+"/d/"+id+"/y", strings.NewReader("hi"))
+	req.Header.Set("X-Real-IP", "203.0.113.9")
+	res2, err := noRedirect.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res2.Body.Close()
+
+	recs := records(t, trusting, id)
+	var got *model.Record
+	for i := range recs {
+		if recs[i].Req.Subpath == "/y" {
+			got = &recs[i]
+		}
+	}
+	if got == nil {
+		t.Fatal("the second request was not recorded")
+	}
+	if got.Remote.IP != "203.0.113.9" {
+		t.Fatalf("remote.ip = %q, want the trusted X-Real-IP", got.Remote.IP)
+	}
+	if got.Remote.RealIP != "203.0.113.9" {
+		t.Fatalf("x_real_ip = %q, want it preserved as sent", got.Remote.RealIP)
+	}
+}
+
+func TestRealIPIsRecordedButNotTrustedByDefault(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	req, _ := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/y", strings.NewReader("hi"))
+	req.Header.Set("X-Real-IP", "203.0.113.9")
+	res, err := noRedirect.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+
+	rec := records(t, a, id)[0]
+	if rec.Remote.IP == "203.0.113.9" {
+		t.Fatal("an untrusted X-Real-IP was believed: any caller could pick their address")
+	}
+	if rec.Remote.RealIP != "203.0.113.9" {
+		t.Fatalf("x_real_ip = %q, want the header kept for debugging", rec.Remote.RealIP)
 	}
 }

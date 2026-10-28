@@ -35,6 +35,14 @@ func (a *App) handleTCPConn(conn net.Conn) {
 	defer conn.Close()
 
 	remote := remoteFromAddr(conn.RemoteAddr())
+	release, admitted := a.admitConn(remote.IP)
+	if !admitted {
+		return // close immediately; the caller sees EOF, not a recorded session
+	}
+	defer release()
+	if !a.admitIngest(remote.IP) {
+		return
+	}
 	start := time.Now()
 	_ = conn.SetReadDeadline(time.Now().Add(a.cfg.ConnIdle))
 

@@ -52,6 +52,7 @@ type Remote struct {
 	TLS       bool   `json:"tls"`
 	TLSSNI    string `json:"tls_sni,omitempty"`
 	Forwarded string `json:"forwarded_for,omitempty"` // raw X-Forwarded-For, always
+	RealIP    string `json:"x_real_ip,omitempty"`     // raw X-Real-IP, always
 }
 
 // Timing is microseconds at the points named.

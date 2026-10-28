@@ -33,12 +33,14 @@ type Addrs struct {
 
 // App owns every listener and the state behind them.
 type App struct {
-	cfg   Config
-	store store.Backend
-	hub   *hub.Hub
-	rl    *ratelimit.Limiter
-	csrf  *csrf
-	log   *slog.Logger
+	cfg    Config
+	store  store.Backend
+	hub    *hub.Hub
+	rl     *ratelimit.Limiter
+	ingest *ratelimit.Limiter
+	conns  *connGate
+	csrf   *csrf
+	log    *slog.Logger
 
 	httpSrv *http.Server
 	httpLis net.Listener
@@ -68,6 +70,8 @@ func New(cfg Config) *App {
 		cfg:    cfg,
 		hub:    hub.New(128),
 		rl:     ratelimit.New(cfg.RentPerHour, time.Hour),
+		ingest: ratelimit.New(cfg.IngestPerMinute, time.Minute),
+		conns:  newConnGate(cfg.MaxConnsPerIP),
 		csrf:   tokens,
 		log:    slog.Default(),
 		ctx:    ctx,

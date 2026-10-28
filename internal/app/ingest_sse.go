@@ -34,6 +34,13 @@ type sseMessage struct {
 // handleSSEListen holds the connection open and forwards every event the
 // dumpster emits, recording each one against the listening session.
 func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string) {
+	release, admitted := a.admitConn(a.clientIP(r))
+	if !admitted {
+		http.Error(w, "too many open connections from this address", http.StatusTooManyRequests)
+		return
+	}
+	defer release()
+
 	start := time.Now()
 	d, ok := a.mustDumpster(w, sid)
 	if !ok {
@@ -43,7 +50,7 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 	rec := &model.Record{
 		Kind:       model.KindSSE,
 		ReceivedAt: start,
-		Remote:     remoteFrom(r, a.cfg.TrustProxy),
+		Remote:     remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP),
 		Req:        requestEnvelope(r, "/sse"),
 		Timing:     timingFrom(r, start),
 		Meta:       map[string]string{"role": "listener"},
@@ -138,7 +145,7 @@ func (a *App) handleSSEEmit(w http.ResponseWriter, r *http.Request, sid string) 
 	rec := &model.Record{
 		Kind:       model.KindSSE,
 		ReceivedAt: start,
-		Remote:     remoteFrom(r, a.cfg.TrustProxy),
+		Remote:     remoteFrom(r, a.cfg.TrustProxy, a.cfg.TrustRealIP),
 		Req:        requestEnvelope(r, "/sse/emit"),
 		Timing:     timingFrom(r, start),
 		Meta: map[string]string{
