@@ -26,7 +26,7 @@ services:
     volumes:
       # SRC_DIR must be the path as the DOCKER DAEMON sees it, not as this shell
       # sees it. scripts/dev.sh sets it per mode; by hand from the host it is:
-      #   SRC_DIR=$HOME/Developer/dumpster docker compose -f compose.dev.yaml up -d
+      #   SRC_DIR=$PWD docker compose -f compose.dev.yaml up -d
       - ${SRC_DIR:-.}:/src
       - go-mod:/go/pkg/mod
       - go-cache:/root/.cache/go-build

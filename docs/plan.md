@@ -70,7 +70,7 @@ linux/amd64 check, but nothing here depends on them.)
 | D7 | SSE semantics | **Inbound**: `GET /d/{id}/sse?count=&interval_ms=` streams events back to the caller and records the connection plus every emitted event. The debug page's **Trigger SSE** button opens a real `EventSource` | Satisfies "SSE must be triggered from the app" while keeping SSE a dumped protocol, not a special case. |
 | D8 | Abuse controls | **No auth** (as specified), but: 10 rents/hour/IP, 10 000 dumpsters globally, 1 MiB body cap, 500 records/dumpster, 500 events/record | A public unauthenticated endpoint that allocates memory on `POST` is an invitation; these caps are the minimum to keep it alive. |
 | D9 | Front-end | **Vanilla JS, no framework, no build step** | One page, one list, one socket. React/Vite triples the file count for nothing. |
-| D10 | Reverse proxy | `-trust-proxy` flag (default **off**): when on, the first `X-Forwarded-For` hop becomes `remote.ip`, while the raw `RemoteAddr` and all headers are still dumped | Adam deploys behind Traefik; without this every remote IP in production reads the proxy's address and the tool lies. |
+| D10 | Reverse proxy | `-trust-proxy` flag (default **off**): when on, the first `X-Forwarded-For` hop becomes `remote.ip`, while the raw `RemoteAddr` and all headers are still dumped | Deployed behind a proxy; without this every remote IP reads the proxy's address and the tool lies. |
 
 ---
 
@@ -246,7 +246,7 @@ The dev container publishes `8080–8083` to the Mac.
 
 | Who | URL |
 | --- | --- |
-| Adam's browser (Mac) | `http://localhost:8080` |
+| A local browser | `http://localhost:8080` |
 | Anything run *inside* the dev container (tests, `scripts/smoke.sh`) | `http://127.0.0.1:8080` |
 | The sandbox shell | not guaranteed — published ports land on the **daemon's** host, which is not necessarily this sandbox. Run the check inside the container instead (`dev.sh sh 'curl …'`) or `docker exec` into it. |
 
