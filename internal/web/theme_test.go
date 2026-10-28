@@ -306,3 +306,37 @@ func TestEventColumnsSizeFromContent(t *testing.T) {
 		t.Fatalf("event columns carry a pixel width again: %q", cols)
 	}
 }
+
+// One long nowrap string in a row's meta — an IPv6 address, typically — used to
+// widen the whole column past the viewport: 630px of content inside a 393px
+// phone. Flex and grid items need permission to shrink, and the meta needs to
+// ellipsize rather than push.
+func TestRowsCannotWidenThePage(t *testing.T) {
+	raw, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	css := strings.ReplaceAll(string(raw), "\n", "")
+
+	if !strings.Contains(css, ".grid>*{min-width:0}") {
+		t.Fatal("grid children may not shrink: a long row will widen the page")
+	}
+
+	start := strings.Index(css, ".row{")
+	if start < 0 {
+		t.Fatal("no .row rule")
+	}
+	row := css[start : start+strings.Index(css[start:], "}")]
+	if !strings.Contains(row, "minmax(0,auto)") {
+		t.Fatalf("the meta column cannot shrink below its content: %s", row)
+	}
+
+	start = strings.Index(css, ".when{")
+	if start < 0 {
+		t.Fatal("no .when rule")
+	}
+	when := css[start : start+strings.Index(css[start:], "}")]
+	if !strings.Contains(when, "overflow:hidden") || !strings.Contains(when, "text-overflow:ellipsis") {
+		t.Fatalf("the meta text has no way to truncate: %s", when)
+	}
+}
