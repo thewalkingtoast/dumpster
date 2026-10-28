@@ -98,7 +98,7 @@ func (b *Backend) key(parts ...string) string {
 // Create mints a dumpster and arms its expiry.
 func (b *Backend) Create(owner string) (model.Dumpster, error) {
 	ctx := context.Background()
-	now := b.now()
+	now := b.now().UTC()
 	if b.limits.MaxDumpsters > 0 {
 		n, err := b.rdb.SCard(ctx, b.key("ids")).Result()
 		if err != nil {
@@ -186,6 +186,7 @@ func (b *Backend) Add(sid string, rec *model.Record) (model.Record, error) {
 	if stored.ReceivedAt.IsZero() {
 		stored.ReceivedAt = b.now()
 	}
+	stored.NormalizeUTC()
 	if stored.Events == nil {
 		stored.Events = []model.Event{}
 	}
@@ -221,6 +222,10 @@ func (b *Backend) AppendEvent(sid string, seq uint64, ev model.Event) (model.Rec
 			rec.DroppedEvents++
 			return
 		}
+		if ev.At.IsZero() {
+			ev.At = b.now()
+		}
+		ev.At = ev.At.UTC()
 		rec.Events = append(rec.Events, ev)
 	})
 }

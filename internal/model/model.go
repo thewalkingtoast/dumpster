@@ -31,6 +31,19 @@ type Dumpster struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// NormalizeUTC rewrites every timestamp on the record into UTC.
+//
+// The wire format is RFC3339 and the page converts to whatever zone the browser
+// is in, so the instant is already portable. What this buys is uniformity: a
+// server started with TZ set would otherwise write -06:00 offsets, and one
+// snapshot would then mix zones that cannot be compared or sorted by eye.
+func (r *Record) NormalizeUTC() {
+	r.ReceivedAt = r.ReceivedAt.UTC()
+	for i := range r.Events {
+		r.Events[i].At = r.Events[i].At.UTC()
+	}
+}
+
 // Remote is who connected and how.
 type Remote struct {
 	Addr      string `json:"addr"` // "ip:port" exactly as the listener saw it

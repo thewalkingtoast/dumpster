@@ -80,7 +80,9 @@ func New(limits Limits, ttl time.Duration) *Store {
 func (s *Store) Create(owner string) (model.Dumpster, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	now := s.now()
+	// UTC at rest: the wire format is RFC3339, and a host with TZ set would
+	// otherwise write -06:00 offsets that make one snapshot a mixture of zones.
+	now := s.now().UTC()
 	if s.limits.MaxDumpsters > 0 && len(s.dumps) >= s.limits.MaxDumpsters {
 		return model.Dumpster{}, ErrFull
 	}
@@ -274,6 +276,7 @@ func (s *Store) Add(sid string, rec *model.Record) (model.Record, error) {
 	if stored.ReceivedAt.IsZero() {
 		stored.ReceivedAt = s.now()
 	}
+	stored.NormalizeUTC()
 	if stored.Events == nil {
 		stored.Events = []model.Event{}
 	}
@@ -327,6 +330,11 @@ func (s *Store) AppendEvent(sid string, seq uint64, ev model.Event) (model.Recor
 	if len(r.Events) >= s.limits.MaxEvents {
 		r.DroppedEvents++
 		return *r, nil
+	}
+	if ev.At.IsZero() {
+		ev.At = s.now().UTC()
+	} else {
+		ev.At = ev.At.UTC()
 	}
 	r.Events = append(r.Events, ev)
 	return *r, nil

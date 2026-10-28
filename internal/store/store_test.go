@@ -295,3 +295,40 @@ func TestPatchReqWritesPayloadBackAndAdjustsAccounting(t *testing.T) {
 		t.Fatalf("stored record still reports %d bytes", recs[0].Req.BodyBytes)
 	}
 }
+
+// Timestamps must be UTC at rest, not merely "correct on a host that happens to
+// run UTC". A server with TZ set would otherwise write -06:00 offsets, mixing
+// zones inside one snapshot; browsers cope, but the archive stops being sortable
+// or greppable by eye.
+func TestStoredTimesAreUTC(t *testing.T) {
+	loc := time.FixedZone("MDT", -6*3600)
+	s := New(Limits{MaxRecords: 10}, time.Hour)
+	s.now = func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, loc) }
+
+	d, err := s.Create("1.1.1.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.CreatedAt.Location() != time.UTC || d.ExpiresAt.Location() != time.UTC {
+		t.Fatalf("dumpster times = %v / %v, want UTC", d.CreatedAt, d.ExpiresAt)
+	}
+
+	rec, err := s.Add(d.ID, &model.Record{ReceivedAt: time.Date(2026, 6, 1, 12, 0, 1, 0, loc)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.ReceivedAt.Location() != time.UTC {
+		t.Fatalf("received_at = %v, want UTC", rec.ReceivedAt)
+	}
+	if got := rec.ReceivedAt.Format(time.RFC3339); got != "2026-06-01T18:00:01Z" {
+		t.Fatalf("received_at = %q, want the same instant in Z form", got)
+	}
+
+	upd, err := s.AppendEvent(d.ID, rec.Seq, model.Event{At: time.Date(2026, 6, 1, 12, 0, 2, 0, loc)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upd.Events) != 1 || upd.Events[0].At.Location() != time.UTC {
+		t.Fatalf("event time = %v, want UTC", upd.Events)
+	}
+}

@@ -3,6 +3,7 @@ package redisstore
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -178,5 +179,37 @@ func TestCreateCapsEachCallerAndRefillsAfterExpiry(t *testing.T) {
 	clock = clock.Add(2 * time.Hour) // the first dumpster has expired
 	if _, err := b.Create("9.9.9.9"); err != nil {
 		t.Fatalf("expired dumpster still counted against the caller: %v", err)
+	}
+}
+
+// The Redis backend marshals its own copy, so it needs the same guarantee.
+func TestRedisStoredTimesAreUTC(t *testing.T) {
+	b, _ := newBackend(t, func(o *Options) { o.MaxDumpsters = 0 })
+	// Anchor to now in a non-UTC zone: miniredis expires keys against wall time,
+	// so a clock in the past would delete the dumpster before Add could run.
+	loc := time.FixedZone("MDT", -6*3600)
+	clock := time.Now().In(loc)
+	b.now = func() time.Time { return clock }
+
+	d, err := b.Create("1.1.1.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.CreatedAt.Location() != time.UTC {
+		t.Fatalf("created_at = %v, want UTC", d.CreatedAt)
+	}
+	rec, err := b.Add(d.ID, &model.Record{ReceivedAt: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rec.ReceivedAt.Format(time.RFC3339); !strings.HasSuffix(got, "Z") {
+		t.Fatalf("received_at = %q, want Z form", got)
+	}
+	upd, err := b.AppendEvent(d.ID, rec.Seq, model.Event{At: clock.Add(time.Second)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upd.Events) != 1 || upd.Events[0].At.Location() != time.UTC {
+		t.Fatalf("event time = %v, want UTC", upd.Events)
 	}
 }
