@@ -201,3 +201,35 @@ func TestDetailBlocksAreCopyable(t *testing.T) {
 		t.Fatal("a copied block gives no visual confirmation")
 	}
 }
+
+// The detail pane must stay protocol-agnostic: one renderer, one <pre> creation
+// site, and that site wired for copying. A per-protocol section bolted on later
+// would otherwise ship blocks nobody can copy — the exact regression this guards.
+func TestDetailPaneIsProtocolAgnosticAndFullyCopyable(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(js)
+
+	if got := strings.Count(src, "el('pre'"); got != 1 {
+		t.Fatalf("%d <pre> creation sites; every detail block must come from the one wired block() helper", got)
+	}
+	if !strings.Contains(src, "wireCopyable(body, label)") {
+		t.Fatal("the single block() renderer is not wired for copying")
+	}
+
+	start := strings.Index(src, "function detailNode(rec)")
+	end := strings.Index(src, "function makeRow(rec)")
+	if start < 0 || end <= start {
+		t.Fatal("cannot locate detailNode; the guard needs updating")
+	}
+	if pane := src[start:end]; strings.Contains(pane, "rec.kind") {
+		t.Fatal("detailNode branches on rec.kind: any protocol-specific section must still render through block()")
+	}
+	for _, block := range []string{"'received'", "'request'", "'headers'", "'body (raw)'", "'remote'", "'timing (µs)'", "'meta'"} {
+		if !strings.Contains(src[start:end], block) {
+			t.Fatalf("detail pane lost the %s block", block)
+		}
+	}
+}
