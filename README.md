@@ -84,6 +84,19 @@ Flags wins over `DUMPSTER_*` env, env wins over defaults.
 | — | `DUMPSTER_RENT_PER_HOUR` | `10` |
 | `-redis` | `DUMPSTER_REDIS_URL` | unset — memory backend |
 
+### What a record keeps
+
+A record keeps at most **64 KiB of the raw body** and **64 KiB of the decoded
+preview** (JSON, form, multipart or text). The real sizes are always recorded —
+`body_bytes` and `decoded.bytes` — and `truncated: true` marks a field that is a
+sample rather than the whole thing. Without that cap a single 1 MiB request cost
+2.9 MB resident; with it, a record costs about 130 KB, so a dumpster full of 1 MiB
+payloads holds ~65 MB instead of ~1.4 GB.
+
+`/_records.json` is gzipped when the client sends `Accept-Encoding: gzip`
+(typically ~4×; a 500-record snapshot is tens of megabytes otherwise). SSE and
+WebSocket responses are never buffered through the compressor.
+
 ### Storage
 
 By default dumpsters live in the process's memory: fast, zero dependencies, and
