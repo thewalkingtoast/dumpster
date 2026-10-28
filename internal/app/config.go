@@ -57,7 +57,7 @@ func DefaultConfig() Config {
 		MaxRecords:   500,
 		MaxEvents:    500,
 		MaxDumpsters: 50000, // whole-board ceiling; protects the map, not the bytes
-		MaxPerIP:     500, // each address may hold 500 live dumpsters
+		MaxPerIP:     500,   // each address may hold 500 live dumpsters
 		RentPerHour:  10,
 		ConnIdle:     90 * time.Second,
 	}
