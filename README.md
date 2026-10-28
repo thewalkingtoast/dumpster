@@ -73,13 +73,27 @@ Flags wins over `DUMPSTER_*` env, env wins over defaults.
 | `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off |
 | — | `DUMPSTER_MAX_DUMPSTERS` | `10000` |
 | — | `DUMPSTER_RENT_PER_HOUR` | `10` |
+| `-redis` | `DUMPSTER_REDIS_URL` | unset — memory backend |
+
+### Storage
+
+By default dumpsters live in the process's memory: fast, zero dependencies, and
+gone when the process stops. Set `DUMPSTER_REDIS_URL` (or `-redis`) to use Redis
+instead, which gives you two things:
+
+- **Survival across restarts** — only with `appendonly yes`; the compose file sets it.
+- **Multiple app instances** — the store is shared and dashboard updates are relayed
+  over Redis Pub/Sub, so a page on instance B sees traffic that landed on instance A.
+
+`/healthz` returns `503` with the reason when the backend is unreachable. A dead
+Redis makes every dumpster read as "gone" — check `/healthz` before you believe it.
 
 ## Limits, on purpose
 
 - 1 MiB of body per request (anything longer is truncated and flagged, never rejected)
 - 500 records per dumpster, 500 events per record — oldest dropped first
 - 10 000 dumpsters globally, 10 rentals per hour per IP
-- Everything is in memory: restarting the process empties the yard
+- In memory by default: restarting the process empties the yard (see Storage to persist)
 
 Requests are public to anyone holding the link. Do not dump production secrets
 into one.

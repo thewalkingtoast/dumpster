@@ -12,12 +12,27 @@ services:
       DUMPSTER_TTL: 12h
       DUMPSTER_MAX_BODY: "1048576"
       DUMPSTER_MAX_DUMPSTERS: "10000"
+      DUMPSTER_REDIS_URL: redis://redis:6379/0
       # set these when behind a proxy:
       # DUMPSTER_BASE_URL: https://dumpster.example
       # DUMPSTER_TRUST_PROXY: "1"
       # DUMPSTER_PUBLIC_GRPC: dumpster.example:8081
       # DUMPSTER_PUBLIC_TCP: dumpster.example:8082
       # DUMPSTER_PUBLIC_UDP: dumpster.example:8083
+    depends_on:
+      - redis
     read_only: true
     security_opt:
       - no-new-privileges:true
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly yes is what makes dumpsters survive a restart. Without it,
+    # Redis is a memory store and the yard is empty after every crash.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
