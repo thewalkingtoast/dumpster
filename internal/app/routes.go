@@ -55,7 +55,7 @@ func (a *App) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 	}
 	if sub == "/_records.json" {
 		r.SetPathValue("id", sid)
-		a.handleRecordsJSON(w, r)
+		gzipJSON(a.handleRecordsJSON)(w, r)
 		return
 	}
 	a.handleHTTPIngest(w, r, sid, sub)
