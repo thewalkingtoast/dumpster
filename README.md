@@ -29,7 +29,7 @@ make smoke    # end-to-end against a running server inside the container
 | Protocol | Address |
 | --- | --- |
 | HTTP | `POST http://host:8080/d/<uuid>/any/path` — any method, any path, body kept |
-| SSE | `curl -N 'http://host:8080/d/<uuid>/sse?count=5&interval_ms=1000'` |
+| SSE | `curl -N 'http://host:8080/d/<uuid>/sse?count=5&interval_ms=1000'` — the same stream the page's *Open SSE stream* button opens |
 | WebSocket | `ws://host:8080/d/<uuid>/ws` — every frame recorded, every frame echoed |
 | gRPC | `host:8081`, method `/d<uuid-without-dashes>/Anything`, or any method plus `x-dumpster-id` metadata |
 | TCP | `:8082`, first line is the uuid, everything after is payload |

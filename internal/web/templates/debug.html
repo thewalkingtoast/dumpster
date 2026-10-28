@@ -36,9 +36,11 @@
       <h3>HTTP <span class="hint">any method, any path</span></h3>
       <pre class="cmd" data-cmd="http"></pre>
 
-      <h3>SSE <span class="hint">streams back to you</span>
-        <button class="mini" id="btn-sse" type="button">Trigger SSE</button></h3>
+      <h3>SSE <span class="hint">the dumpster is the server; you open the stream</span>
+        <button class="mini" id="btn-sse" type="button">Open SSE stream</button></h3>
       <pre class="cmd" data-cmd="sse"></pre>
+      <p class="hint">This button and the command above make the same request — the page just
+        cannot run curl. Both open one stream of five events, recorded as outgoing.</p>
 
       <h3>gRPC <span class="hint">path or x-dumpster-id</span></h3>
       <pre class="cmd" data-cmd="grpc"></pre>

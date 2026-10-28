@@ -107,3 +107,24 @@ func TestAgeUsesTabularFigures(t *testing.T) {
 		t.Fatal("the age is not tabular: rows will shift horizontally as it counts")
 	}
 }
+
+// SSE is the one protocol where the dumpster is the server, so the button and the
+// curl line are the same request. Saying so is the difference between a demo and
+// an apparent duplicate — the page cannot run curl, which is the only reason both
+// exist.
+func TestDebugPageSaysTheSSEButtonAndCommandAreTheSameRequest(t *testing.T) {
+	html, err := fs.ReadFile(templateFS, "templates/debug.html")
+	if err != nil {
+		t.Fatalf("read debug.html: %v", err)
+	}
+	s := string(html)
+	for _, want := range []struct{ needle, why string }{
+		{"Open SSE stream", "the button is not labelled for what it does (it opens a stream, it does not trigger an event)"},
+		{"make the same request", "the page no longer says the button and the curl line are the same request"},
+		{"the dumpster is the server", "the page does not explain that SSE is outbound-only"},
+	} {
+		if !strings.Contains(s, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+}

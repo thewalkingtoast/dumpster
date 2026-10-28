@@ -338,7 +338,7 @@
       if (source) {
         source.close();
         source = null;
-        button.textContent = 'Trigger SSE';
+        button.textContent = 'Open SSE stream';
         return;
       }
       source = new EventSource(ORIGIN + '/d/' + ID + '/sse?count=5&interval_ms=1000');
@@ -348,7 +348,7 @@
         // forever, minting a new dump row every second. Close it instead.
         source.close();
         source = null;
-        button.textContent = 'Trigger SSE';
+        button.textContent = 'Open SSE stream';
       });
     });
   }
