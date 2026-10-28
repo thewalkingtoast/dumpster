@@ -106,3 +106,4 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
   margin:0 0 18px;padding:14px 16px;border:1px solid var(--err);border-radius:10px;
   background:#221317;color:#f0c9c2;font-size:.9rem;
 }
+.send .badge{padding:4px 8px}
