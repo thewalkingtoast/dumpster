@@ -222,6 +222,7 @@ func (a *App) openStore() (store.Backend, error) {
 			MaxRecords:   a.cfg.MaxRecords,
 			MaxEvents:    a.cfg.MaxEvents,
 			MaxDumpsters: a.cfg.MaxDumpsters,
+			MaxPerIP:     a.cfg.MaxPerIP,
 		}, a.cfg.TTL), nil
 	}
 	return redisstore.New(a.ctx, redisstore.Options{
@@ -230,5 +231,6 @@ func (a *App) openStore() (store.Backend, error) {
 		MaxRecords:   a.cfg.MaxRecords,
 		MaxEvents:    a.cfg.MaxEvents,
 		MaxDumpsters: a.cfg.MaxDumpsters,
+		MaxPerIP:     a.cfg.MaxPerIP,
 	})
 }

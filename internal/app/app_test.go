@@ -83,7 +83,7 @@ func TestReaperRemovesExpired(t *testing.T) {
 		c.TTL = 40 * time.Millisecond
 		c.ReapEvery = 15 * time.Millisecond
 	})
-	d, err := a.store.Create()
+	d, err := a.store.Create("10.0.0.1")
 	if err != nil {
 		t.Fatalf("store.Create: %v", err)
 	}

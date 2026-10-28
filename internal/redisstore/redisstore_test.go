@@ -2,6 +2,7 @@ package redisstore
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -34,7 +35,7 @@ func newBackend(t *testing.T, tweak ...func(*Options)) (*Backend, *miniredis.Min
 
 func TestCreateAndGet(t *testing.T) {
 	b, _ := newBackend(t)
-	d, err := b.Create()
+	d, err := b.Create("10.0.0.1")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -55,20 +56,20 @@ func TestCreateAndGet(t *testing.T) {
 
 func TestMaxDumpsters(t *testing.T) {
 	b, _ := newBackend(t)
-	if _, err := b.Create(); err != nil {
+	if _, err := b.Create("10.0.0.1"); err != nil {
 		t.Fatalf("Create 1: %v", err)
 	}
-	if _, err := b.Create(); err != nil {
+	if _, err := b.Create("10.0.0.1"); err != nil {
 		t.Fatalf("Create 2: %v", err)
 	}
-	if _, err := b.Create(); err != store.ErrFull {
+	if _, err := b.Create("10.0.0.1"); err != store.ErrFull {
 		t.Fatalf("Create 3 = %v, want ErrFull", err)
 	}
 }
 
 func TestAddAssignsSeqTrimsAndListsNewestFirst(t *testing.T) {
 	b, _ := newBackend(t)
-	d, _ := b.Create()
+	d, _ := b.Create("10.0.0.1")
 	for i := 0; i < 5; i++ {
 		if _, err := b.Add(d.ID, &model.Record{Kind: model.KindHTTP}); err != nil {
 			t.Fatalf("Add %d: %v", i, err)
@@ -88,7 +89,7 @@ func TestAddAssignsSeqTrimsAndListsNewestFirst(t *testing.T) {
 
 func TestAppendEventCapsAndCountsDrops(t *testing.T) {
 	b, _ := newBackend(t)
-	d, _ := b.Create()
+	d, _ := b.Create("10.0.0.1")
 	rec, err := b.Add(d.ID, &model.Record{Kind: model.KindTCP})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
@@ -109,7 +110,7 @@ func TestAppendEventCapsAndCountsDrops(t *testing.T) {
 
 func TestCloseMarksRecord(t *testing.T) {
 	b, _ := newBackend(t)
-	d, _ := b.Create()
+	d, _ := b.Create("10.0.0.1")
 	rec, _ := b.Add(d.ID, &model.Record{Kind: model.KindWS})
 	closed, err := b.Close(d.ID, rec.Seq, "closed normally")
 	if err != nil {
@@ -122,7 +123,7 @@ func TestCloseMarksRecord(t *testing.T) {
 
 func TestExpiredKeysHidesAndSweeps(t *testing.T) {
 	b, mr := newBackend(t, func(o *Options) { o.TTL = time.Minute })
-	d, _ := b.Create()
+	d, _ := b.Create("10.0.0.1")
 
 	// miniredis only advances TTLs on request: fast-forward past the expiry.
 	mr.FastForward(2 * time.Minute)
@@ -147,5 +148,35 @@ func TestHealth(t *testing.T) {
 	mr.Close()
 	if err := b.Health(); err == nil {
 		t.Fatal("Health should fail once the server is gone")
+	}
+}
+
+// The per-caller cap must behave exactly like the memory store's, including
+// refilling as dumpsters expire — the allowance is a sorted set scored by expiry
+// so it prunes itself rather than needing a sweeper.
+func TestCreateCapsEachCallerAndRefillsAfterExpiry(t *testing.T) {
+	b, _ := newBackend(t, func(o *Options) {
+		o.MaxPerIP = 1
+		o.MaxDumpsters = 0 // isolate the per-caller cap from the global one
+		o.TTL = time.Hour
+	})
+	// anchor to the real clock: miniredis expires keys against wall time, so a
+	// clock in the past would make the allowance set vanish before it is read
+	clock := time.Now()
+	b.now = func() time.Time { return clock }
+
+	if _, err := b.Create("9.9.9.9"); err != nil {
+		t.Fatalf("first rent: %v", err)
+	}
+	if _, err := b.Create("9.9.9.9"); !errors.Is(err, store.ErrFullPerIP) {
+		t.Fatalf("second rent from one address = %v, want ErrFullPerIP", err)
+	}
+	if _, err := b.Create("8.8.8.8"); err != nil {
+		t.Fatalf("a different address was blocked: %v", err)
+	}
+
+	clock = clock.Add(2 * time.Hour) // the first dumpster has expired
+	if _, err := b.Create("9.9.9.9"); err != nil {
+		t.Fatalf("expired dumpster still counted against the caller: %v", err)
 	}
 }

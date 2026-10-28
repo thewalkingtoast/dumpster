@@ -35,7 +35,8 @@ type Config struct {
 	MaxBody      int
 	MaxRecords   int
 	MaxEvents    int
-	MaxDumpsters int
+	MaxDumpsters int // global ceiling; 0 = unlimited
+	MaxPerIP     int // per-caller ceiling; 0 = unlimited
 	RentPerHour  int
 	ConnIdle     time.Duration
 	TrustProxy   bool
@@ -55,7 +56,8 @@ func DefaultConfig() Config {
 		MaxBody:      1 << 20,
 		MaxRecords:   500,
 		MaxEvents:    500,
-		MaxDumpsters: 10000,
+		MaxDumpsters: 0,   // no global ceiling: the per-caller cap is the guard
+		MaxPerIP:     500, // each address may hold 500 live dumpsters
 		RentPerHour:  10,
 		ConnIdle:     90 * time.Second,
 	}
@@ -110,6 +112,9 @@ func (c Config) FromEnv() Config {
 	}
 	if v, ok := intEnv("DUMPSTER_MAX_DUMPSTERS"); ok {
 		c.MaxDumpsters = v
+	}
+	if v, ok := intEnv("DUMPSTER_MAX_PER_IP"); ok {
+		c.MaxPerIP = v
 	}
 	if v, ok := intEnv("DUMPSTER_RENT_PER_HOUR"); ok {
 		c.RentPerHour = v

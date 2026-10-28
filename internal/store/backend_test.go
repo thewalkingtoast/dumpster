@@ -10,7 +10,7 @@ import (
 func TestMemoryImplementsBackend(t *testing.T) {
 	var b Backend = New(Limits{MaxRecords: 2}, time.Minute)
 
-	d, err := b.Create()
+	d, err := b.Create("10.0.0.1")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

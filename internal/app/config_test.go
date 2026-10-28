@@ -16,8 +16,11 @@ func TestDefaultConfig(t *testing.T) {
 	if c.MaxBody != 1<<20 {
 		t.Fatalf("MaxBody = %d, want 1 MiB", c.MaxBody)
 	}
-	if c.RentPerHour != 10 || c.MaxRecords != 500 {
+	if c.RentPerHour != 10 || c.MaxRecords != 500 || c.MaxPerIP != 500 {
 		t.Fatalf("limits = %+v", c)
+	}
+	if c.MaxDumpsters != 0 {
+		t.Fatalf("MaxDumpsters = %d, want 0 (no global ceiling)", c.MaxDumpsters)
 	}
 }
 
@@ -46,7 +49,7 @@ func TestFromEnvIgnoresGarbage(t *testing.T) {
 	t.Setenv("DUMPSTER_TTL", "not-a-duration")
 	t.Setenv("DUMPSTER_MAX_BODY", "bananas")
 	c := DefaultConfig().FromEnv()
-	if c.TTL != 12*time.Hour || c.MaxBody != 1<<20 {
+	if c.TTL != 3*time.Hour || c.MaxBody != 1<<20 {
 		t.Fatalf("garbage env should be ignored, got %+v", c)
 	}
 }

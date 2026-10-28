@@ -14,7 +14,7 @@ import (
 // dumpster is not there. Backend.Health is what distinguishes the two, and
 // /healthz reports it.
 type Backend interface {
-	Create() (model.Dumpster, error)
+	Create(owner string) (model.Dumpster, error)
 	Get(sid string) (model.Dumpster, bool)
 	Add(sid string, rec *model.Record) (model.Record, error)
 	AppendEvent(sid string, seq uint64, ev model.Event) (model.Record, error)

@@ -37,6 +37,7 @@ type Options struct {
 	MaxRecords   int
 	MaxEvents    int
 	MaxDumpsters int
+	MaxPerIP     int
 }
 
 // Backend speaks the same Backend contract as the memory store.
@@ -78,6 +79,7 @@ func New(ctx context.Context, opts Options) (*Backend, error) {
 			MaxRecords:   opts.MaxRecords,
 			MaxEvents:    opts.MaxEvents,
 			MaxDumpsters: opts.MaxDumpsters,
+			MaxPerIP:     opts.MaxPerIP,
 		},
 		now: time.Now,
 	}, nil
@@ -94,8 +96,9 @@ func (b *Backend) key(parts ...string) string {
 }
 
 // Create mints a dumpster and arms its expiry.
-func (b *Backend) Create() (model.Dumpster, error) {
+func (b *Backend) Create(owner string) (model.Dumpster, error) {
 	ctx := context.Background()
+	now := b.now()
 	if b.limits.MaxDumpsters > 0 {
 		n, err := b.rdb.SCard(ctx, b.key("ids")).Result()
 		if err != nil {
@@ -105,7 +108,22 @@ func (b *Backend) Create() (model.Dumpster, error) {
 			return model.Dumpster{}, store.ErrFull
 		}
 	}
-	now := b.now()
+	// Per-caller cap. The allowance is a sorted set scored by expiry, so the
+	// count prunes itself: expired members are dropped before counting instead
+	// of lingering forever the way a plain set would.
+	ipKey := b.key("ip", owner)
+	if b.limits.MaxPerIP > 0 {
+		if err := b.rdb.ZRemRangeByScore(ctx, ipKey, "-inf", strconv.FormatInt(now.Unix(), 10)).Err(); err != nil {
+			return model.Dumpster{}, err
+		}
+		n, err := b.rdb.ZCard(ctx, ipKey).Result()
+		if err != nil {
+			return model.Dumpster{}, err
+		}
+		if int(n) >= b.limits.MaxPerIP {
+			return model.Dumpster{}, store.ErrFullPerIP
+		}
+	}
 	for attempt := 0; attempt < 5; attempt++ {
 		sid, err := id.New()
 		if err != nil {
@@ -118,6 +136,8 @@ func (b *Backend) Create() (model.Dumpster, error) {
 			"expires_at", expires.UnixNano())
 		pipe.PExpireAt(ctx, b.key("d", sid), expires)
 		pipe.SAdd(ctx, b.key("ids"), sid)
+		pipe.ZAdd(ctx, ipKey, redis.Z{Score: float64(expires.Unix()), Member: sid})
+		pipe.ExpireAt(ctx, ipKey, expires)
 		if _, err := pipe.Exec(ctx); err != nil {
 			return model.Dumpster{}, err
 		}

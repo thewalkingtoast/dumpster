@@ -49,8 +49,12 @@ func (a *App) handleRent(w http.ResponseWriter, r *http.Request) {
 			"You have rented too many dumpsters this hour. They expire on their own; try again shortly.")
 		return
 	}
-	d, err := a.store.Create()
+	d, err := a.store.Create(a.clientIP(r))
 	switch {
+	case errors.Is(err, store.ErrFullPerIP):
+		w.Header().Set("Retry-After", "600")
+		a.renderError(w, http.StatusTooManyRequests, "Your yard is full",
+			"This address already holds "+fmt.Sprint(a.cfg.MaxPerIP)+" dumpsters. They expire after "+humanDuration(a.cfg.TTL)+".")
 	case errors.Is(err, store.ErrFull):
 		a.renderError(w, http.StatusServiceUnavailable, "The yard is full",
 			"Every dumpster is currently rented. They empty themselves after "+humanDuration(a.cfg.TTL)+".")

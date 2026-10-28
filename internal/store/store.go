@@ -16,6 +16,11 @@ var (
 	ErrNotFound = errors.New("dumpster not found")
 	// ErrFull means the global dumpster cap is reached.
 	ErrFull = errors.New("too many dumpsters")
+
+	// ErrFullPerIP means this one caller already holds their whole allowance.
+	// It is distinct from ErrFull so the page can tell a busy yard from a busy
+	// wallet, and answer 429 instead of 503.
+	ErrFullPerIP = errors.New("too many dumpsters from this address")
 )
 
 // Limits are the caps that keep an unauthenticated service alive.
@@ -23,6 +28,7 @@ type Limits struct {
 	MaxRecords   int
 	MaxEvents    int
 	MaxDumpsters int // 0 = unlimited
+	MaxPerIP     int // 0 = unlimited
 }
 
 // Store is a map of dumpsters, each behind its own mutex, so ingestion into one
@@ -39,6 +45,7 @@ type Store struct {
 type entry struct {
 	mu      sync.Mutex
 	dump    model.Dumpster
+	owner   string // renter's ip, for the per-caller cap
 	records []*model.Record // oldest first; List reverses
 	nextSeq uint64
 }
@@ -60,13 +67,16 @@ func New(limits Limits, ttl time.Duration) *Store {
 }
 
 // Create mints a new dumpster and returns it.
-func (s *Store) Create() (model.Dumpster, error) {
+func (s *Store) Create(owner string) (model.Dumpster, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := s.now()
 	if s.limits.MaxDumpsters > 0 && len(s.dumps) >= s.limits.MaxDumpsters {
 		return model.Dumpster{}, ErrFull
 	}
-	now := s.now()
+	if s.limits.MaxPerIP > 0 && s.countByOwnerLocked(owner, now) >= s.limits.MaxPerIP {
+		return model.Dumpster{}, ErrFullPerIP
+	}
 	for attempt := 0; attempt < 5; attempt++ {
 		sid, err := id.New()
 		if err != nil {
@@ -76,10 +86,23 @@ func (s *Store) Create() (model.Dumpster, error) {
 			continue
 		}
 		d := model.Dumpster{ID: sid, CreatedAt: now, ExpiresAt: now.Add(s.ttl)}
-		s.dumps[sid] = &entry{dump: d}
+		s.dumps[sid] = &entry{dump: d, owner: owner}
 		return d, nil
 	}
 	return model.Dumpster{}, errors.New("could not mint a unique dumpster id")
+}
+
+// countByOwnerLocked counts the caller's live dumpsters. Expired entries are
+// skipped rather than swept: the reaper runs on its own schedule and counting a
+// corpse would lock a caller out of a dumpster they could legitimately rent.
+func (s *Store) countByOwnerLocked(owner string, now time.Time) int {
+	n := 0
+	for _, e := range s.dumps {
+		if e.owner == owner && e.dump.ExpiresAt.After(now) {
+			n++
+		}
+	}
+	return n
 }
 
 // Get returns the dumpster if it exists and has not expired.

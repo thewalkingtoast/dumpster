@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 
 func TestCreateAndGet(t *testing.T) {
 	s := New(Limits{MaxRecords: 3, MaxEvents: 2, MaxDumpsters: 2}, time.Hour)
-	d, err := s.Create()
+	d, err := s.Create("10.0.0.1")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -30,20 +31,20 @@ func TestCreateAndGet(t *testing.T) {
 
 func TestMaxDumpsters(t *testing.T) {
 	s := New(Limits{MaxDumpsters: 2}, time.Hour)
-	if _, err := s.Create(); err != nil {
+	if _, err := s.Create("10.0.0.1"); err != nil {
 		t.Fatalf("Create 1: %v", err)
 	}
-	if _, err := s.Create(); err != nil {
+	if _, err := s.Create("10.0.0.1"); err != nil {
 		t.Fatalf("Create 2: %v", err)
 	}
-	if _, err := s.Create(); err != ErrFull {
+	if _, err := s.Create("10.0.0.1"); err != ErrFull {
 		t.Fatalf("Create 3 err = %v, want ErrFull", err)
 	}
 }
 
 func TestAddAssignsSeqTrimsAndListsNewestFirst(t *testing.T) {
 	s := New(Limits{MaxRecords: 3}, time.Hour)
-	d, err := s.Create()
+	d, err := s.Create("10.0.0.1")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestAddAssignsSeqTrimsAndListsNewestFirst(t *testing.T) {
 
 func TestAppendEventCapsAndCountsDrops(t *testing.T) {
 	s := New(Limits{MaxRecords: 5, MaxEvents: 2}, time.Hour)
-	d, _ := s.Create()
+	d, _ := s.Create("10.0.0.1")
 	rec, err := s.Add(d.ID, &model.Record{Kind: model.KindTCP})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
@@ -93,7 +94,7 @@ func TestAppendEventCapsAndCountsDrops(t *testing.T) {
 
 func TestCloseMarksRecord(t *testing.T) {
 	s := New(Limits{}, time.Hour)
-	d, _ := s.Create()
+	d, _ := s.Create("10.0.0.1")
 	rec, _ := s.Add(d.ID, &model.Record{Kind: model.KindWS})
 	closed, err := s.Close(d.ID, rec.Seq, "closed by peer")
 	if err != nil {
@@ -106,7 +107,7 @@ func TestCloseMarksRecord(t *testing.T) {
 
 func TestExpiryHidesAndDeletes(t *testing.T) {
 	s := New(Limits{MaxRecords: 3}, 50*time.Millisecond)
-	d, err := s.Create()
+	d, err := s.Create("10.0.0.1")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -129,5 +130,40 @@ func TestExpiryHidesAndDeletes(t *testing.T) {
 	}
 	if len(s.DeleteExpired(time.Now())) != 0 {
 		t.Fatal("second DeleteExpired should find nothing")
+	}
+}
+
+// The cap is per caller: one noisy address must not lock out another, and the
+// allowance must refill as old dumpsters expire rather than needing a reaper run.
+func TestCreateCapsEachCallerAtTheirOwnAllowance(t *testing.T) {
+	s := New(Limits{MaxPerIP: 2}, time.Hour)
+	for i := 0; i < 2; i++ {
+		if _, err := s.Create("1.1.1.1"); err != nil {
+			t.Fatalf("rent %d: %v", i+1, err)
+		}
+	}
+	if _, err := s.Create("1.1.1.1"); !errors.Is(err, ErrFullPerIP) {
+		t.Fatalf("third rent from one address = %v, want ErrFullPerIP", err)
+	}
+	if _, err := s.Create("2.2.2.2"); err != nil {
+		t.Fatalf("a different address was blocked: %v", err)
+	}
+}
+
+func TestExpiredDumpstersDoNotCountAgainstTheirCaller(t *testing.T) {
+	s := New(Limits{MaxPerIP: 1}, time.Hour)
+	now := time.Unix(0, 0)
+	s.now = func() time.Time { return now }
+
+	if _, err := s.Create("1.1.1.1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create("1.1.1.1"); !errors.Is(err, ErrFullPerIP) {
+		t.Fatalf("second rent = %v, want ErrFullPerIP", err)
+	}
+
+	now = now.Add(2 * time.Hour) // the first dumpster is now a corpse
+	if _, err := s.Create("1.1.1.1"); err != nil {
+		t.Fatalf("expired dumpster still counted against the caller: %v", err)
 	}
 }
