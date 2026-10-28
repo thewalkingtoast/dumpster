@@ -71,8 +71,9 @@
             while the terminal looks idle.</p>
           <p class="hint">One frame from a pipe, then exit:</p>
           <pre class="cmd" data-cmd="wsframe"></pre>
-          <p class="hint">A binary frame &mdash; recorded as base64, because bytes that are not
-            UTF-8 are kept byte-for-byte:</p>
+          <p class="hint">A frame carrying bytes that are not valid UTF-8 &mdash; those are kept
+            byte-for-byte as base64. A binary frame whose bytes happen to be valid UTF-8 is
+            shown as text instead, because that is what it is:</p>
           <pre class="cmd" data-cmd="wsbinary"></pre>
           <p class="hint">No websocat? The browser console does the same:
             <code>let ws = new WebSocket('wss://&lt;host&gt;/d/&lt;id&gt;/ws'); ws.onopen = () =&gt; ws.send('hello')</code></p>

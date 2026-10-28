@@ -215,3 +215,50 @@ func TestWelcomePingsLandOnePerSecond(t *testing.T) {
 		t.Fatalf("gap between the first two pings = %v, want about a second", gap)
 	}
 }
+
+// The frame's opcode decides the event type, but its bytes decide how it is shown:
+// a binary frame that happens to be valid UTF-8 is text, and only bytes that are
+// not valid UTF-8 need base64. The page's binary example depends on this, so it
+// is pinned here rather than left implicit.
+func TestBinaryFrameWithValidUTF8IsRecordedAsText(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, wsURL(a, "/d/"+id+"/ws"), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.CloseNow()
+
+	if err := c.Write(ctx, websocket.MessageBinary, []byte{0x00, 0x01}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, _, err := c.Read(ctx); err != nil {
+		t.Fatalf("read echo: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rec := range records(t, a, id) {
+			if rec.Kind != model.KindWS {
+				continue
+			}
+			for _, ev := range rec.Events {
+				if ev.Type != "binary" {
+					continue
+				}
+				if ev.Base64 != "" {
+					t.Fatalf("valid UTF-8 was base64-encoded: %+v", ev)
+				}
+				if ev.Text == "" {
+					t.Fatalf("the frame was recorded with no text and no base64: %+v", ev)
+				}
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no binary event recorded")
+}
