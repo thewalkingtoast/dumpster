@@ -93,9 +93,13 @@ case "${1:-}" in
   sh)
     shift
     cmd="${1:-bash}"
+    # -t only when we actually have a terminal: `docker exec -it` refuses to run
+    # from a non-interactive caller, which is how scripts and CI invoke this.
+    tty=""
+    [ -t 0 ] && tty="-t"
     case "$MODE" in
-      native) exec bash -lc "$cmd" ;;
-      socket) exec docker exec -it -w /src "$NAME" bash -lc "$cmd" ;;
+      native) exec bash -c "$cmd" ;;
+      socket) exec docker exec -i $tty -w /src "$NAME" bash -c "$cmd" ;;
     esac ;;
 
   *)
