@@ -90,7 +90,7 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
 /* ---------- send panel ---------- */
 .send h3{
   font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);
-  margin:20px 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  margin:20px 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between;
 }
 .send .hint{text-transform:none;letter-spacing:0;color:var(--dim);font-size:.72rem}
 pre.cmd{
