@@ -10,5 +10,6 @@ build: ; $(DEV) go build ./...
 run:   ; $(DEV) go run ./cmd/dumpster
 fmt:   ; $(DEV) go fmt ./...
 tidy:  ; $(DEV) go mod tidy
-smoke: ; $(DEV) sh 'APP_URL=http://127.0.0.1:8080 bash scripts/smoke.sh'
+smoke:  ; $(DEV) sh 'APP_URL=http://127.0.0.1:8080 bash scripts/smoke.sh'
+image:  ; docker build --build-arg VERSION=$$(git rev-parse --short HEAD) -t dumpster:local .
 down:  ; $(DEV) down

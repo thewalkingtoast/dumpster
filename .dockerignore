@@ -1,5 +1,11 @@
 .git
+.github
 .hermes
 bin
+docs
+*.md
 *.test
 *.out
+compose*.yaml
+scripts
+examples

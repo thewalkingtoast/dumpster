@@ -13,6 +13,10 @@ import (
 	"github.com/adam/dumpster/internal/app"
 )
 
+// version is stamped at build time (-X main.version=...) and logged at startup,
+// so a deployed container can be told apart from the build you assume is running.
+var version = "dev"
+
 func main() {
 	cfg := app.DefaultConfig().FromEnv()
 
@@ -47,6 +51,7 @@ func main() {
 
 	addrs := a.Addrs()
 	slog.Info("dumpster up",
+		"version", version,
 		"http", addrs.HTTP,
 		"grpc", addrs.GRPC,
 		"tcp", addrs.TCP,
