@@ -115,6 +115,13 @@ func serveEmbedded(w http.ResponseWriter, name, contentType string) {
 func staticHandler() http.Handler {
 	files := http.FileServer(http.FS(web.Static))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// FileServer lists a directory that has no index. The embedded assets are
+		// all public anyway, but an enumeration is an invitation to map the binary.
+		// StripPrefix leaves "" for /static/ itself, and "" is the listing too.
+		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
 		if r.URL.Query().Get("v") != "" {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		} else {

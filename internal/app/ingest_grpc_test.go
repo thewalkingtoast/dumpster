@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
@@ -103,5 +105,37 @@ func TestGRPCUnknownDumpster(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unknown or expired") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// An RPC is one record, so it must cost the same budget as one HTTP request.
+// Without the gate, gRPC was a free lane around the per-address ingest limiter.
+func TestGRPCIngestDrawsOnTheSameBudget(t *testing.T) {
+	a := newTestApp(t, func(c *Config) { c.IngestPerMinute = 2 })
+	id := rent(t, a)
+	cc := grpcClient(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	method := "/d" + strings.ReplaceAll(id, "-", "") + "/Anything"
+
+	invoke := func() error {
+		return cc.Invoke(ctx, method,
+			&rawproto.Message{Body: []byte("x")},
+			&rawproto.Message{},
+			grpc.ForceCodec(rawproto.Codec{}),
+		)
+	}
+	for i := 0; i < 2; i++ {
+		if err := invoke(); err != nil {
+			t.Fatalf("call %d: %v", i+1, err)
+		}
+	}
+	err := invoke()
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("third call error = %v, want ResourceExhausted", err)
+	}
+	if got := len(records(t, a, id)); got != 2 {
+		t.Fatalf("records = %d, want 2 (the refused call must not be recorded)", got)
 	}
 }

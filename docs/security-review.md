@@ -1,0 +1,265 @@
+# Dumpster — OWASP Top 10 security review
+
+**Date:** 2026-10-28
+**Scope:** `github.com/thewalkingtoast/dumpster` @ `cbf060c` (all Go packages, the
+web client, and the deployed instance at `https://dumpster.toastsnacks.dev`)
+**Verdict:** no critical or high-severity issue left open. Four real defects were
+found and fixed in this pass; five items are accepted risk with reasons, and four
+are recommendations that were deliberately not implemented today.
+
+---
+
+## 1. Method
+
+| Instrument | What it covers | Result |
+| --- | --- | --- |
+| `govulncheck ./...` | known CVEs reachable from the code | "No vulnerabilities found." |
+| `gosec ./...` | Go static analysis (G1xx–G5xx) | 4 findings → all resolved, now 0 |
+| manual review | every handler, the client JS, headers, templates | 3 defects |
+| live probes | TLS floors, response headers, frame injection, rate limits | see §5 |
+| unit/mutation tests | each fix has a test that fails without it | 4 new guards |
+
+The app is a **capability-based** tool: the dumpster URL is the credential.
+There are no accounts, cookies, or sessions, which removes whole classes of
+attack (A01 session fixation, A07 credential stuffing) and shifts the threat
+model onto link secrecy, resource limits, and output encoding.
+
+---
+
+## 2. OWASP Top 10 (2021) — status
+
+| # | Category | Status |
+| --- | --- | --- |
+| A01 | Broken access control | **One hole found and fixed** — gRPC bypassed the ingest budget |
+| A02 | Cryptographic failures | Pass — TLS 1.2 floor, HMAC-SHA256 CSRF, no secrets in logs |
+| A03 | Injection | **One real injection found and fixed** — SSE frame forging; XSS surface clean |
+| A04 | Insecure design | Pass — layered caps; open ingest is the product, documented |
+| A05 | Security misconfiguration | **One hygiene fix** — static directory listing removed |
+| A06 | Vulnerable & outdated components | Pass — govulncheck clean, deps pinned |
+| A07 | Identification & auth failures | Pass — no auth by design; CSRF gates the two state changes |
+| A08 | Software & data integrity | Pass — no deserialisation gadgets, no code loading |
+| A09 | Logging & monitoring failures | Accept — structured logs, no bodies or tokens recorded |
+| A10 | SSRF | Pass — the server makes no outbound requests except to its own Redis |
+
+---
+
+## 3. Fixed in this pass
+
+### F1 — gRPC was a free lane around the ingest rate limiter *(was: high)*
+
+`admitIngest` guarded HTTP, TCP and UDP; WebSocket and SSE used the per-IP
+connection gate. gRPC used **neither**. Since one RPC creates one record, a
+single gRPC client could mint records at line rate while HTTP callers were cut
+off at 600/min — the limit existed but had a hole the size of a protocol.
+
+```go
+// internal/app/ingest_grpc.go — before the record is created
+remote := remoteFromPeer(ctx)
+if !a.admitIngest(remote.IP) {
+    return status.Error(codes.ResourceExhausted, "ingest rate limit for this address, retry shortly")
+}
+```
+
+Plus `grpc.MaxConcurrentStreams(64)` so one connection cannot fan out unbounded.
+Guard: `TestGRPCIngestDrawsOnTheSameBudget` — third call on a 2/min budget must
+fail with `ResourceExhausted` and must not be recorded. Without the gate it
+returns success.
+
+**Residual:** gRPC connections are still not counted by the per-IP *connection*
+cap (only messages are budgeted). Idle connections cost a goroutine each; see §6.
+
+### F2 — SSE listeners could be fed forged frames *(was: medium)*
+
+`POST /sse/emit?event=…` wrote the client-supplied event name straight into an
+`event:` line. A newline there forges entire frames. Demonstrated against a
+running instance before the fix:
+
+```
+id: 1
+event: legit
+event: forged                      <- injected: a second type line
+                                    <- injected: end of frame
+data: {"at":"…","payload":"hello\n\nevent: injected\ndata: you-were-not-sent-this"}
+```
+
+(The payload itself was already safe — it is JSON-encoded, so `payload`
+newlines arrive escaped. The event name was the hole.)
+
+Fixed twice over, because there are two writers:
+
+* `handleSSEEmit` sanitises the name it accepts, so the record and the hub
+  message agree with what listeners receive;
+* the listener's frame writer sanitises again, so a relayed message from another
+  instance cannot inject either.
+
+```go
+// drops CR, LF, NUL, VT, FF; trims; caps at 64 runes; empty → "dump"
+func sseEventName(raw string) string
+```
+
+Guard: `TestSSEEventNameCannotForgeFrames` asserts exactly one `event:` and one
+`data:` line per frame and that no recorded type carries a newline. Removing
+either layer fails the test.
+
+**Severity note:** exploiting this requires the CSRF token, i.e. the dumpster
+page — which is already the capability to send to that dumpster. It is a
+protocol-integrity bug (mislabelled events, broken framing for consumers), not
+an escalation, and there is no XSS: frames are consumed by `EventSource`, and
+the page never interprets event data as markup.
+
+### F3 — `/static/` listed the embedded filesystem *(was: low)*
+
+`http.FileServer` renders a directory listing when there is no index. Every
+served asset is public anyway, but the listing is an inventory of the binary for
+anyone who asks.
+
+```go
+// StripPrefix leaves "" for /static/ itself, and "" is the listing too.
+if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
+    http.NotFound(w, r)
+    return
+}
+```
+
+Guard: `TestStaticDoesNotListDirectories`. My first attempt checked only for a
+trailing slash and the test caught the empty-path case immediately.
+
+### F4 — four `gosec` findings closed
+
+| Rule | Site | Resolution |
+| --- | --- | --- |
+| G115 int64→uint64 | `redisstore.Add` sequence | negative counter now refused with an error instead of becoming 18 quintillion; `TestNegativeSequenceIsRefused` (the first version of that test seeded `-1` and passed trivially — `INCR` turns `-1` into `0`, so the seed had to be `-5`) |
+| G402 InsecureSkipVerify | `cmd/grpcping` | the debug client now **verifies certificates by default**; `-insecure` is the explicit opt-out, annotated `#nosec` |
+| G104 ×2 | `decode` part close, `loadgen` body close | errors acknowledged with `_ =` and a reason |
+
+`gosec` now reports **0 issues** across 4,087 lines, and `govulncheck` stays
+clean.
+
+---
+
+## 4. Verified as sound (evidence in §5)
+
+**XSS (A03).** The client builds every node with `createElement` + `textContent`;
+`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval` and
+`new Function` appear **nowhere** in `app.js` or `theme.js`, and a test fails the
+build if `innerHTML` appears. Attribute values are set from data, but attribute
+*names* never are, and the only interpolated attributes are
+`class`/`title`/`data-*`. Server templates are `html/template` with no
+`template.HTML`/`JS`/`URL`/`CSS` anywhere in the repo, so every record field is
+context-escaped. Attacker-controlled strings (headers, bodies, protobuf, TCP and
+UDP payloads) therefore reach the DOM only as text.
+
+**Injection beyond HTML (A03).** No SQL, no shell (`os/exec` is absent from the
+server), no templating of user input. JSON responses are
+`application/json; charset=utf-8` with `nosniff`, so `SetEscapeHTML(false)` on
+the encoder is safe: `<` in a captured body cannot be re-interpreted as markup.
+
+**CSRF (A07).** `csrf.Valid` = HMAC-SHA256 over `unix.nonce`, 128-bit
+`crypto/rand` nonce, `hmac.Equal` (constant-time), 12-hour TTL, future-dated
+tokens rejected. Gates exactly the two state-changing routes: `POST /rent` and
+`POST /sse/emit`. Cross-origin `Origin` is refused unless same-origin or `null`
+(Firefox sends `null` for same-origin form posts under
+`Referrer-Policy: no-referrer`; the token still has to be valid, so `null` is
+treated as "unknown" rather than "trusted"). Pages carrying a token are
+`no-store`, and the CORS middleware refuses to grant wildcard read on any
+response that carries one.
+
+**Transport (A02).** Measured on the live host:
+
+```
+gRPC  :8081  TLS1.0 → refused   TLS1.1 → refused   TLS1.2 → OK   TLS1.3 → OK
+HTTPS :443   TLS1.0 → refused   TLS1.1 → refused   TLS1.2 → OK   TLS1.3 → OK
+strict-transport-security: max-age=15724800; includeSubdomains
+```
+
+**Headers (A05).** Every route returns `Content-Security-Policy` with
+`script-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`,
+`base-uri 'none'`, `form-action 'self'` and **no** `unsafe-inline`;
+`X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`;
+`Referrer-Policy: same-origin`. Token-bearing pages add `Cache-Control: no-store`.
+
+**Resource limits (A04).** One address: 10 rents/hour, 600 ingested items/minute,
+64 concurrent TCP/WebSocket/SSE sessions, 500 live dumpsters. One dumpster: 500
+records, 8 MiB, 1 MiB per body, 64 KiB decoded preview. Whole board: 50,000
+dumpsters, 4 GiB, oldest-first eviction, body strip before refusal. Overrun on
+the SSE hub drops rather than blocks (128 backlog). Header read timeout 10 s,
+`MaxHeaderBytes` 1 MiB, idle timeout 75 s.
+
+**No secrets in logs (A09).** No `slog` call site references body, token, CSRF or
+secret fields.
+
+---
+
+## 5. Probe transcript (abridged)
+
+```
+$ govulncheck ./...                      → No vulnerabilities found.
+$ gosec ./...                            → Issues: 0 (was 4, all addressed)
+$ openssl s_client -tls1_1 :8081         → FAILED (no TLS 1.0/1.1)
+$ openssl s_client -tls1_2 :8081         → Protocol version: TLSv1.2
+$ curl -D- /d/<id>/_records.json         → ACAO: *, nosniff, CSP, HSTS
+$ curl -D- /d/<id>                       → no ACAO, Cache-Control: no-store
+$ POST /rent            (no token)       → 403
+$ POST /rent            (tampered sig)   → 403
+$ POST /rent            (future-dated)   → 403
+$ POST /rent            (valid, 1h44m)   → 303   ← correct: 12h TTL, fixed secret
+$ POST /sse/emit        (no token)       → 403
+$ POST /d/<id>/anything (no token)       → 200   ← ingest is open by design
+$ GET  /static/                          → 404 (was 200 + listing)
+$ emit ?event=legit%0Aevent:%20forged…   → one event line, newline stripped
+```
+
+---
+
+## 6. Accepted risk (deliberate — do not "fix" without re-reading this)
+
+1. **Open ingest.** Anyone holding the URL may send to a dumpster, from any
+   origin. That is the tool. `Access-Control-Allow-Origin: *` on
+   `/d/<id>/<subpath>` (including `_records.json`) means any website that knows
+   the link can read and write it in a victim's browser. The landing page says
+   so in as many words: "anyone with a link can read it".
+2. **`websocket.Accept` runs with `InsecureSkipVerify: true`,** disabling the
+   library's Origin check. Safe *only because there are no cookies*: a
+   cross-site page gains no ambient authority, and cross-origin socket use is a
+   feature. **If authentication is ever added, this becomes CSWSH and must be
+   pinned to an origin.**
+3. **`-trust-proxy` / `-trust-real-ip` are spoofable** when the app is reachable
+   directly. Both default off; the README explains when each is correct and why
+   an appending proxy must not be trusted.
+4. **`/healthz` returns the backend error string** on failure (503). With Redis
+   this can name a host and port. Judged acceptable for an ops endpoint on a
+   debug tool; the value of a real reason outweighs the disclosure.
+5. **The CSRF token is not bound to a dumpster.** A token minted on dumpster A's
+   page is valid for emitting to dumpster B — but B's id is itself the
+   capability, so this grants nothing new. Tokens live 12 hours.
+
+---
+
+## 7. Recommendations not implemented
+
+| Priority | Item | Why it is not done today |
+| --- | --- | --- |
+| Medium | Per-request **read deadline** on HTTP ingest bodies (`http.NewResponseController(w).SetReadDeadline`) | a slow-body client holds a goroutine indefinitely; the 1 MiB cap bounds memory, not time. Needs care so long-poll style clients are unaffected |
+| Low | Count gRPC **connections** per IP, not just messages | needs a `stats.Handler`; the message budget already bounds work |
+| Low | Redact the `/healthz` error (or gate it behind localhost) | ops value vs. minor disclosure |
+| Low | Rate-limit **rent** per IPv6 /64 rather than per address | a single /64 can rotate 2^64 addresses; only matters if rent abuse appears in practice |
+
+---
+
+## 8. Reproducing this review
+
+```bash
+./scripts/dev.sh go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+./scripts/dev.sh go run github.com/securego/gosec/v2/cmd/gosec@latest -quiet ./...
+./scripts/dev.sh go test ./... -count=1
+```
+
+The four new guards are named so they can be run alone:
+
+```bash
+./scripts/dev.sh go test ./internal/app -run 'TestGRPCIngestDrawsOnTheSameBudget|TestSSEEventNameCannotForgeFrames|TestStaticDoesNotListDirectories'
+./scripts/dev.sh go test ./internal/redisstore -run TestNegativeSequenceIsRefused
+```
+
+Each was mutation-checked: with the guard removed the test fails, with it
+restored the test passes.

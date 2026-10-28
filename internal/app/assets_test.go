@@ -56,3 +56,15 @@ func TestThemeScriptsAreServed(t *testing.T) {
 		}
 	}
 }
+
+// FileServer lists a directory with no index; the assets are public, but an
+// enumeration still hands a stranger the shape of the binary.
+func TestStaticDoesNotListDirectories(t *testing.T) {
+	a := newTestApp(t)
+	if res, _ := get(t, a.BaseURL()+"/static/"); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET /static/ status = %d, want 404", res.StatusCode)
+	}
+	if res, _ := get(t, a.BaseURL()+"/static/app.js"); res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /static/app.js status = %d, want 200", res.StatusCode)
+	}
+}

@@ -23,7 +23,8 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:8081", "gRPC address")
 	id := flag.String("id", "", "dumpster uuid")
 	msg := flag.String("msg", "hello", "payload to send")
-	useTLS := flag.Bool("tls", false, "dial over TLS; the certificate is not verified (this is a debug tool, not a bank)")
+	useTLS := flag.Bool("tls", false, "dial over TLS, verifying the certificate (the default server name comes from -addr)")
+	insecureTLS := flag.Bool("insecure", false, "with -tls, skip certificate verification (self-signed dev servers)")
 	flag.Parse()
 
 	if *id == "" {
@@ -33,7 +34,9 @@ func main() {
 
 	var creds credentials.TransportCredentials = insecure.NewCredentials()
 	if *useTLS {
-		creds = credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
+		// Verify by default: this tool is pointed at real servers too, and a
+		// silently unverified connection teaches the wrong habit.
+		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: *insecureTLS}) // #nosec G402 -- opt-in via -insecure
 	}
 
 	cc, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(creds))

@@ -213,3 +213,26 @@ func TestRedisStoredTimesAreUTC(t *testing.T) {
 		t.Fatalf("event time = %v, want UTC", upd.Events)
 	}
 }
+
+// A hand-edited or corrupted counter must not become a giant sequence number:
+// uint64(-1) would sort the record to the far future and break eviction order.
+func TestNegativeSequenceIsRefused(t *testing.T) {
+	b, mr := newBackend(t)
+	d, err := b.Create("10.0.0.1")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// INCR adds one, so the counter must start below -1 for the result to stay
+	// negative: -5 becomes -4, which is what a corrupt key looks like.
+	if err := mr.Set("dumpster:seq:"+d.ID, "-5"); err != nil {
+		t.Fatalf("seed seq: %v", err)
+	}
+
+	_, err = b.Add(d.ID, &model.Record{Kind: "http"})
+	if err == nil {
+		t.Fatal("a negative sequence was accepted")
+	}
+	if !strings.Contains(err.Error(), "refusing to record") {
+		t.Fatalf("error = %v, want the sequence refusal", err)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -246,4 +247,93 @@ func TestSSEListenerSendsFiveEventsOnConnect(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("the listener row never recorded %d events", sseWelcomeEvents)
+}
+
+// The event name lands in an `event:` line, so a newline in it would let the
+// caller forge entire frames — a hijacked type, extra data lines, a fake id.
+func TestSSEEventNameCannotForgeFrames(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.BaseURL()+"/d/"+id+"/sse", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := (&http.Client{}).Do(req)
+	if err != nil {
+		t.Fatalf("GET sse: %v", err)
+	}
+	defer res.Body.Close()
+
+	sc := bufio.NewScanner(res.Body)
+	// frame reads one blank-line-terminated block, skipping pure comment frames.
+	frame := func() []string {
+		for {
+			var out []string
+			for sc.Scan() {
+				line := sc.Text()
+				if line == "" {
+					if len(out) > 0 {
+						break
+					}
+					continue
+				}
+				out = append(out, line)
+			}
+			if len(out) == 0 || strings.HasPrefix(out[0], ":") {
+				if len(out) == 0 {
+					return nil
+				}
+				continue
+			}
+			return out
+		}
+	}
+
+	for i := 0; i < sseWelcomeEvents; i++ {
+		if f := frame(); f == nil {
+			t.Fatal("welcome burst ended early")
+		}
+	}
+
+	forged := "legit\nevent: forged\n\ndata: injected"
+	if res, _ := emitSSE(t, a, id, "?count=1&event="+url.QueryEscape(forged)+"&data=hi"); res.StatusCode != http.StatusOK {
+		t.Fatalf("emit status = %d, want 200", res.StatusCode)
+	}
+
+	f := frame()
+	if f == nil {
+		t.Fatal("listener received nothing for the emission")
+	}
+	events, datas := 0, 0
+	for _, line := range f {
+		if strings.HasPrefix(line, "event: ") {
+			events++
+			// The words survive as inert text inside the single name; what must
+			// not survive is a second line that a client would read as its own field.
+			if line == "event: forged" {
+				t.Fatalf("event name carried a forged line: %q", f)
+			}
+		}
+		if strings.HasPrefix(line, "data: ") {
+			datas++
+		}
+	}
+	if events != 1 || datas != 1 {
+		t.Fatalf("frame = %q, want exactly one event: and one data: line", f)
+	}
+
+	// The row must agree with what listeners saw.
+	for _, rec := range records(t, a, id) {
+		if rec.Meta["role"] != "emit" {
+			continue
+		}
+		for _, ev := range rec.Events {
+			if strings.ContainsAny(ev.Type, "\r\n") {
+				t.Fatalf("recorded event type carries a newline: %q", ev.Type)
+			}
+		}
+	}
 }

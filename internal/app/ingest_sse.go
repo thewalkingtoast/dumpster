@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/thewalkingtoast/dumpster/internal/model"
@@ -29,6 +30,27 @@ const sseDefaultEvent = "dump"
 // Connecting is the demonstration: `curl -N` shows something without a second
 // command, which is what the docs promise.
 const sseWelcomeEvents = 5
+
+// sseEventName makes a client-supplied event name safe to write into an `event:`
+// line. A newline there would let the caller forge whole frames — extra data
+// lines, a hijacked id, a different type — so control characters are dropped and
+// the result is capped. An empty result falls back to the default name.
+func sseEventName(raw string) string {
+	clean := strings.Map(func(r rune) rune {
+		if r == '\r' || r == '\n' || r == 0 || r == 0x0b || r == 0x0c {
+			return -1
+		}
+		return r
+	}, raw)
+	clean = strings.TrimSpace(clean)
+	if r := []rune(clean); len(r) > 64 {
+		clean = string(r[:64])
+	}
+	if clean == "" {
+		return sseDefaultEvent
+	}
+	return clean
+}
 
 // sseMessage is what an emission publishes through the hub. Listeners share that
 // channel with dashboard bookkeeping, so they filter on Type.
@@ -146,7 +168,7 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 			if err := json.Unmarshal(payload, &msg); err != nil || msg.Type != "sse" {
 				continue // bookkeeping for the dashboard shares this channel
 			}
-			frame := fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", msg.ID, msg.Event, msg.Data)
+			frame := fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", msg.ID, sseEventName(msg.Event), msg.Data)
 			if _, err := io.WriteString(w, frame); err != nil {
 				a.closeRecord(d.ID, stored.Seq, "client write failed")
 				return
@@ -187,10 +209,7 @@ func (a *App) handleSSEEmit(w http.ResponseWriter, r *http.Request, sid string) 
 	}
 
 	count := clampInt(intQuery(r, "count", 5), 1, maxEvents)
-	eventName := r.URL.Query().Get("event")
-	if eventName == "" {
-		eventName = sseDefaultEvent
-	}
+	eventName := sseEventName(r.URL.Query().Get("event"))
 	note := r.URL.Query().Get("data")
 	listeners := a.hub.Subscribers(d.ID)
 

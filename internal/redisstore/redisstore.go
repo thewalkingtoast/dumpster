@@ -181,6 +181,12 @@ func (b *Backend) Add(sid string, rec *model.Record) (model.Record, error) {
 		return model.Record{}, err
 	}
 
+	// INCR cannot go negative on its own, but a corrupt or hand-edited key can.
+	// Converting that to uint64 would silently turn -1 into 18 quintillion.
+	if seq < 0 {
+		return model.Record{}, fmt.Errorf("sequence for %s is %d, refusing to record", sid, seq)
+	}
+
 	stored := *rec
 	stored.Seq = uint64(seq)
 	if stored.ReceivedAt.IsZero() {

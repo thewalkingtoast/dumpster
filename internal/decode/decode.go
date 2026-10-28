@@ -92,7 +92,7 @@ func multipartBody(body []byte, boundary string) *model.Decoded {
 			return &model.Decoded{Format: "multipart", Error: err.Error()}
 		}
 		data, readErr := io.ReadAll(io.LimitReader(p, maxPartByte))
-		p.Close()
+		_ = p.Close() // closing a part we have finished reading cannot lose data
 		if readErr != nil {
 			return &model.Decoded{Format: "multipart", Error: readErr.Error()}
 		}

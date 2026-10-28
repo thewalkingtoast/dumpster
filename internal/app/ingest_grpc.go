@@ -27,6 +27,7 @@ import (
 func (a *App) newGRPCServer(creds credentials.TransportCredentials) *grpc.Server {
 	opts := []grpc.ServerOption{
 		grpc.ForceServerCodec(rawproto.Codec{}),
+		grpc.MaxConcurrentStreams(64), // one connection cannot fan out without bound
 		grpc.MaxRecvMsgSize(a.cfg.MaxBody),
 		grpc.MaxSendMsgSize(a.cfg.MaxBody),
 		grpc.UnknownServiceHandler(a.handleGRPCStream),
@@ -88,11 +89,20 @@ func (a *App) handleGRPCStream(_ any, stream grpc.ServerStream) error {
 		return status.Error(codes.NotFound, "unknown or expired dumpster")
 	}
 
+	remote := remoteFromPeer(ctx)
+	// An RPC is one record, so it draws on the same per-address budget as an HTTP
+	// request. Without this gate gRPC is a free lane around the ingest limiter:
+	// a client could mint records at line rate while HTTP callers were being cut
+	// off at the configured rate.
+	if !a.admitIngest(remote.IP) {
+		return status.Error(codes.ResourceExhausted, "ingest rate limit for this address, retry shortly")
+	}
+
 	start := time.Now()
 	rec := &model.Record{
 		Kind:       model.KindGRPC,
 		ReceivedAt: start,
-		Remote:     remoteFromPeer(ctx),
+		Remote:     remote,
 		Req:        &model.Request{Protocol: "grpc", Path: full, Headers: headerMap(ctx)},
 		Meta:       map[string]string{"method": method},
 	}

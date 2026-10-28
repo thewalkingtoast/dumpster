@@ -338,6 +338,12 @@ landing page and the debug page cannot be framed (`X-Frame-Options: DENY` plus
 `/d/<uuid>/<subpath>` — the ingest surface — never to the HTML pages that carry a
 token.
 
+Every protocol shares one per-address ingest budget: an HTTP request, a TCP line,
+a UDP datagram and a **gRPC call** all draw on the same allowance, so no protocol
+is a free lane around the limits. The last full review — method, findings,
+accepted risk and the reasoning behind each control — is in
+[docs/security-review.md](docs/security-review.md).
+
 ## Development
 
 ```bash

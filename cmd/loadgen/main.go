@@ -51,7 +51,7 @@ func main() {
 					atomic.AddInt64(&failed, 1)
 					continue
 				}
-				res.Body.Close()
+				_ = res.Body.Close()
 				if res.StatusCode != http.StatusOK {
 					atomic.AddInt64(&failed, 1)
 					continue
