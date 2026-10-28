@@ -167,3 +167,39 @@ func TestRowsShowOnlyTheAgeAndDetailKeepsTheInstant(t *testing.T) {
 		t.Fatal("the row lost the timestamp its age is derived from")
 	}
 }
+
+// An event row is where a payload actually lives, so it must be copyable with one
+// tap and readable at a glance: green text, its own border, and a flash to confirm
+// the copy landed.
+func TestEventRowsAreCopyableAndHighlighted(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(js)
+	for _, want := range []struct{ needle, why string }{
+		{"title: 'click to copy this event'", "the event row does not advertise that it copies"},
+		{"copyText(ev.text || ev.base64 || '', row)", "clicking an event does not copy its payload (binary must copy base64)"},
+		{"function legacyCopy", "no clipboard fallback: plain-http LAN is not a secure context, so navigator.clipboard is absent"},
+		{"document.execCommand('copy')", "the fallback no longer attempts the textarea copy"},
+	} {
+		if !strings.Contains(src, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+
+	css, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	sheet := string(css)
+	if !strings.Contains(sheet, "color:var(--sage);cursor:copy") {
+		t.Fatal("event rows are not green and do not show a copy cursor")
+	}
+	if !strings.Contains(sheet, "border-left:2px solid var(--sage)") {
+		t.Fatal("event rows have no green border highlight")
+	}
+	if !strings.Contains(sheet, ".ev.copied") {
+		t.Fatal("a copied event gives no visual confirmation")
+	}
+}
