@@ -271,3 +271,38 @@ func TestWrappingHeadlineStacksTheLogoOnPhones(t *testing.T) {
 		t.Fatal("the narrow-screen rule does not stack .brand-top")
 	}
 }
+
+// The event row is time | event name | body. Sizing those first columns in pixels
+// let the timestamp paint straight over the event name the moment the root font
+// size changed — a 113px timestamp inside a 70px column.
+func TestEventColumnsSizeFromContent(t *testing.T) {
+	raw, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	css := strings.ReplaceAll(string(raw), "\n", "")
+
+	start := strings.Index(css, ".ev{")
+	if start < 0 {
+		t.Fatal("no .ev rule in the stylesheet")
+	}
+	end := strings.Index(css[start:], "}")
+	rule := css[start : start+end]
+
+	// Only the column list matters: the rule's padding and gap are legitimately
+	// in pixels.
+	at := strings.Index(rule, "grid-template-columns:")
+	if at < 0 {
+		t.Fatalf("no grid-template-columns in .ev: %s", rule)
+	}
+	cols := rule[at+len("grid-template-columns:"):]
+	if semi := strings.Index(cols, ";"); semi >= 0 {
+		cols = cols[:semi]
+	}
+	if !strings.HasPrefix(cols, "max-content max-content") {
+		t.Fatalf("event columns are not content-sized, so a longer timestamp will overprint the name: %q", cols)
+	}
+	if strings.Contains(cols, "px") {
+		t.Fatalf("event columns carry a pixel width again: %q", cols)
+	}
+}

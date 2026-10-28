@@ -83,7 +83,10 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--mu
   word-break:break-word;max-height:340px;
 }
 .events{list-style:none;margin:0;padding:0;font-family:var(--mono);font-size:.74rem}
-.ev{display:grid;grid-template-columns:70px 78px 1fr;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)}
+/* Columns are sized from content, not pixels. The time is HH:MM:SS.mmm (or a
+   dated form for older events) and it grew past a fixed 70px column when the
+   root font size went to 132%, so it painted over the event name. */
+.ev{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .ev.out{color:var(--sage)}
 .ev-at{color:var(--dim)}
 .ev-body{white-space:pre-wrap;word-break:break-word}
