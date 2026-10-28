@@ -1,0 +1,23 @@
+services:
+  dumpster:
+    build: .
+    image: dumpster:local
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # http + websocket + sse
+      - "8081:8081"   # grpc (h2c)
+      - "8082:8082"   # raw tcp
+      - "8083:8083"   # raw udp
+    environment:
+      DUMPSTER_TTL: 12h
+      DUMPSTER_MAX_BODY: "1048576"
+      DUMPSTER_MAX_DUMPSTERS: "10000"
+      # set these when behind a proxy:
+      # DUMPSTER_BASE_URL: https://dumpster.example
+      # DUMPSTER_TRUST_PROXY: "1"
+      # DUMPSTER_PUBLIC_GRPC: dumpster.example:8081
+      # DUMPSTER_PUBLIC_TCP: dumpster.example:8082
+      # DUMPSTER_PUBLIC_UDP: dumpster.example:8083
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
