@@ -93,9 +93,9 @@ func (a *App) handleDumpsterPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.render(w, http.StatusOK, "debug.html", map[string]any{
-		"ID":        d.ID,
-		"Origin":    a.BaseURL(),
-		"ExpiresAt": d.ExpiresAt.UTC().Format(time.RFC3339),
+		"ID":         d.ID,
+		"Origin":     a.BaseURL(),
+		"ExpiresAt":  d.ExpiresAt.UTC().Format(time.RFC3339),
 		"PublicGRPC": a.publicAddr(a.cfg.PublicGRPC, a.Addrs().GRPC),
 		"PublicTCP":  a.publicAddr(a.cfg.PublicTCP, a.Addrs().TCP),
 		"PublicUDP":  a.publicAddr(a.cfg.PublicUDP, a.Addrs().UDP),
