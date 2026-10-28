@@ -44,7 +44,8 @@ func (a *App) withHeaders(next http.Handler) http.Handler {
 		h.Set("Access-Control-Expose-Headers", "*")
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; img-src 'self' data:; style-src 'self'; "+
-				"script-src 'self'; connect-src 'self' ws: wss:; base-uri 'none'; form-action 'self'")
+				"script-src 'self'; connect-src 'self' ws: wss:; base-uri 'none'; form-action 'self'; "+
+				"object-src 'none'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }

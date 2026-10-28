@@ -37,6 +37,7 @@ func (a *App) renderError(w http.ResponseWriter, status int, title, message stri
 		"Title":   title,
 		"Message": message,
 		"Rent":    status != http.StatusTooManyRequests,
+		"CSRF":    a.csrf.Token(),
 	})
 }
 
@@ -45,11 +46,19 @@ func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
 	a.render(w, http.StatusOK, "index.html", map[string]any{
 		"Active": a.store.Len(),
 		"TTL":    humanDuration(a.cfg.TTL),
+		"CSRF":   a.csrf.Token(),
 	})
 }
 
 // handleRent is the single call to action: mint, then redirect to the dumpster.
 func (a *App) handleRent(w http.ResponseWriter, r *http.Request) {
+	// Checked before the rate limiter: a forged request must not spend the
+	// caller's allowance any more than it should mint a dumpster.
+	if !a.csrfOK(r) {
+		a.renderError(w, http.StatusForbidden, "That request did not come from this page",
+			"Reload the page and press the button again.")
+		return
+	}
 	if !a.rl.Allow(a.clientIP(r)) {
 		w.Header().Set("Retry-After", "600")
 		a.renderError(w, http.StatusTooManyRequests, "Slow down",

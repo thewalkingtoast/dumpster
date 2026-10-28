@@ -12,6 +12,7 @@
     <p class="lede">{{.Message}}</p>
     {{if .Rent}}
     <form method="post" action="/rent">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
       <button class="cta" type="submit">Rent a dumpster</button>
     </form>
     {{end}}

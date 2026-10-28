@@ -12,6 +12,7 @@
     <p class="lede">Throw requests at it and watch them land. HTTP, gRPC, WebSocket,
       SSE, TCP, UDP — one link, one live list, {{.TTL}} to live.</p>
     <form method="post" action="/rent">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
       <button class="cta" type="submit">Rent a dumpster</button>
     </form>
     <p class="fine">{{.Active}} in the yard &middot; every dumpster burns itself after {{.TTL}}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -116,13 +117,52 @@ var noRedirect = &http.Client{
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
 
-func rent(t *testing.T, a *App) string {
+// csrfFromPage scrapes the token the landing page embeds, the way a browser
+// would: this app has no session, so the page is the only place to get one.
+func csrfFromPage(t *testing.T, a *App) string {
 	t.Helper()
-	res, err := noRedirect.Post(a.BaseURL()+"/rent", "application/x-www-form-urlencoded", nil)
+	res, body := get(t, a.BaseURL()+"/")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /: %d", res.StatusCode)
+	}
+	const marker = `name="csrf" value="`
+	i := strings.Index(body, marker)
+	if i < 0 {
+		t.Fatalf("no csrf field on the landing page:\n%s", body)
+	}
+	rest := body[i+len(marker):]
+	j := strings.IndexByte(rest, '"')
+	if j < 0 {
+		t.Fatal("unterminated csrf value")
+	}
+	return rest[:j]
+}
+
+// postRent submits the rent form with a token, optionally claiming an address.
+func postRent(t *testing.T, a *App, xff string) (*http.Response, string, string) {
+	t.Helper()
+	token := csrfFromPage(t, a)
+	form := url.Values{csrfField: {token}}
+	req, err := http.NewRequest(http.MethodPost, a.BaseURL()+"/rent", strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if xff != "" {
+		req.Header.Set("X-Forwarded-For", xff)
+	}
+	res, err := noRedirect.Do(req)
 	if err != nil {
 		t.Fatalf("POST /rent: %v", err)
 	}
-	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	return res, string(body), token
+}
+
+func rent(t *testing.T, a *App) string {
+	t.Helper()
+	res, _, _ := postRent(t, a, "")
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", res.StatusCode)
 	}
@@ -163,11 +203,7 @@ func TestRentIsRateLimited(t *testing.T) {
 	rent(t, a)
 	rent(t, a)
 
-	res, err := noRedirect.Post(a.BaseURL()+"/rent", "application/x-www-form-urlencoded", nil)
-	if err != nil {
-		t.Fatalf("third rent: %v", err)
-	}
-	defer res.Body.Close()
+	res, _, _ := postRent(t, a, "")
 	if res.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429", res.StatusCode)
 	}

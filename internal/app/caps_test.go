@@ -1,7 +1,6 @@
 package app
 
 import (
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,17 +10,12 @@ func TestYardIsFull(t *testing.T) {
 	a := newTestApp(t, func(c *Config) { c.MaxDumpsters = 1 })
 	rent(t, a)
 
-	res, err := noRedirect.Post(a.BaseURL()+"/rent", "application/x-www-form-urlencoded", nil)
-	if err != nil {
-		t.Fatalf("second rent: %v", err)
-	}
-	defer res.Body.Close()
+	res, body, _ := postRent(t, a, "")
 	if res.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503 when the yard is full", res.StatusCode)
 	}
 	// Unlike a rate limit, a full yard is a state a new dumpster fixes — so this
 	// page keeps the form that 429 drops.
-	body, _ := io.ReadAll(res.Body)
 	if !strings.Contains(string(body), `action="/rent"`) {
 		t.Fatalf("the full-yard page should offer the rent form:\n%s", body)
 	}
@@ -77,18 +71,8 @@ func TestRentStopsAtThePerAddressAllowance(t *testing.T) {
 
 	post := func(ip string) (int, string) {
 		t.Helper()
-		req, err := http.NewRequest(http.MethodPost, a.BaseURL()+"/rent", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.Header.Set("X-Forwarded-For", ip)
-		res, err := noRedirect.Do(req)
-		if err != nil {
-			t.Fatalf("POST /rent: %v", err)
-		}
-		defer res.Body.Close()
-		body, _ := io.ReadAll(res.Body)
-		return res.StatusCode, string(body)
+		res, body, _ := postRent(t, a, ip)
+		return res.StatusCode, body
 	}
 
 	if code, _ := post("203.0.113.7"); code != http.StatusSeeOther {
@@ -115,22 +99,14 @@ func TestRateLimitedPageDoesNotOfferToRent(t *testing.T) {
 	a := newTestApp(t, func(c *Config) { c.RentPerHour = 1 })
 	rent(t, a) // spends the single allowed rental for this address
 
-	res, err := noRedirect.Post(a.BaseURL()+"/rent", "application/x-www-form-urlencoded", nil)
-	if err != nil {
-		t.Fatalf("POST /rent: %v", err)
-	}
-	defer res.Body.Close()
+	res, body, _ := postRent(t, a, "")
 	if res.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429", res.StatusCode)
 	}
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	if strings.Contains(string(body), `action="/rent"`) {
+	if strings.Contains(body, `action="/rent"`) {
 		t.Fatalf("the rate-limited page offers a rent form that can only bounce back:\n%s", body)
 	}
-	if !strings.Contains(string(body), "Slow down") {
+	if !strings.Contains(body, "Slow down") {
 		t.Fatalf("the page stopped explaining why:\n%s", body)
 	}
 }

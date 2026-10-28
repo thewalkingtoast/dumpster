@@ -37,6 +37,7 @@ type App struct {
 	store store.Backend
 	hub   *hub.Hub
 	rl    *ratelimit.Limiter
+	csrf  *csrf
 	log   *slog.Logger
 
 	httpSrv *http.Server
@@ -57,10 +58,17 @@ type App struct {
 // New builds an App. Nothing is bound until Start.
 func New(cfg Config) *App {
 	ctx, cancel := context.WithCancel(context.Background())
+	tokens, err := newCSRF()
+	if err != nil {
+		// No entropy at startup means no safe tokens; refusing to serve is the
+		// only honest answer.
+		panic("csrf secret: " + err.Error())
+	}
 	return &App{
 		cfg:    cfg,
 		hub:    hub.New(128),
 		rl:     ratelimit.New(cfg.RentPerHour, time.Hour),
+		csrf:   tokens,
 		log:    slog.Default(),
 		ctx:    ctx,
 		cancel: cancel,
