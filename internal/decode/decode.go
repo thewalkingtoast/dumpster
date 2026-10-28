@@ -50,6 +50,30 @@ func Body(contentType string, body []byte) *model.Decoded {
 	return nil
 }
 
+// Cap keeps one decoded value from dragging a whole request body into a record.
+//
+// A body at or under max is already bounded, so its value is left structured and
+// costs nothing extra. Only a larger body is re-encoded to be measured, and if
+// that encoding still exceeds max the value is replaced by a text preview of it.
+// The original size is always kept, so the page can say how much arrived even
+// when the value itself is only a sample.
+func Cap(d *model.Decoded, rawLen, max int) *model.Decoded {
+	if d == nil || d.Value == nil || max <= 0 || rawLen <= max {
+		return d
+	}
+	enc, err := json.Marshal(d.Value)
+	if err != nil {
+		return d
+	}
+	d.Bytes = len(enc)
+	if len(enc) <= max {
+		return d
+	}
+	d.Value = string(enc[:max])
+	d.Truncated = true
+	return d
+}
+
 // multipartBody splits fields from files. Files are described, not retained:
 // name, media type, size and sha256 are enough to identify an upload.
 func multipartBody(body []byte, boundary string) *model.Decoded {

@@ -52,7 +52,11 @@ type Timing struct {
 type Decoded struct {
 	Format string `json:"format"` // json | form | multipart | text
 	Value  any    `json:"value,omitempty"`
-	Error  string `json:"error,omitempty"`
+	// Bytes is the size of the decoded value's JSON encoding, before any cap.
+	Bytes int `json:"bytes,omitempty"`
+	// Truncated means Value holds a text preview rather than the whole thing.
+	Truncated bool   `json:"truncated,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // Request is the envelope each protocol fills in as far as it can.

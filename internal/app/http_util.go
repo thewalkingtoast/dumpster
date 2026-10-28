@@ -140,7 +140,7 @@ func fillBody(req *model.Request, contentType string, body []byte) {
 	} else {
 		req.BodyBase64 = base64.StdEncoding.EncodeToString(body)
 	}
-	req.Decoded = decode.Body(contentType, body)
+	req.Decoded = decode.Cap(decode.Body(contentType, body), len(body), maxInlineText)
 }
 
 // requestEnvelope builds the shared Request from an HTTP request, cloning the

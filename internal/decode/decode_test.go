@@ -2,8 +2,10 @@ package decode
 
 import (
 	"bytes"
+	"encoding/json"
 	"mime/multipart"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -102,5 +104,44 @@ func TestMultipartMissingBoundary(t *testing.T) {
 	got := Body("multipart/form-data", []byte("garbage"))
 	if got == nil || got.Error == "" {
 		t.Fatalf("want a boundary error, got %+v", got)
+	}
+}
+
+// A 1 MiB JSON body must not put 1 MiB into the record. The value is replaced by
+// a text preview of its own encoding, and the original size is kept so the page
+// can still say how much arrived.
+func TestCapReplacesAnOversizedDecodedValue(t *testing.T) {
+	pad := strings.Repeat("a", 1<<20)
+	body := []byte(`{"pad":"` + pad + `"}`)
+
+	d := Body("application/json", body)
+	d = Cap(d, len(body), 64<<10)
+
+	if !d.Truncated {
+		t.Fatal("oversized value was not marked truncated")
+	}
+	if d.Bytes < len(body) {
+		t.Fatalf("Bytes = %d, want at least the body size %d", d.Bytes, len(body))
+	}
+	enc, err := json.Marshal(d)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if len(enc) > 80<<10 {
+		t.Fatalf("capped record still serialises to %d bytes", len(enc))
+	}
+	if _, ok := d.Value.(string); !ok {
+		t.Fatalf("capped value should be a text preview, got %T", d.Value)
+	}
+}
+
+func TestCapLeavesSmallValuesAlone(t *testing.T) {
+	body := []byte(`{"sku":"A1","qty":3}`)
+	d := Cap(Body("application/json", body), len(body), 64<<10)
+	if d.Truncated {
+		t.Fatal("a small value was truncated")
+	}
+	if _, ok := d.Value.(map[string]any); !ok {
+		t.Fatalf("small value should stay structured, got %T", d.Value)
 	}
 }
