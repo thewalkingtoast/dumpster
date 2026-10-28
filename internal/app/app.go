@@ -38,6 +38,11 @@ type App struct {
 	hub    *hub.Hub
 	rl     *ratelimit.Limiter
 	ingest *ratelimit.Limiter
+
+	// sseKeepAlive is how often an idle listener gets a comment line. Proxies cut
+	// silent streams (nginx proxy_read_timeout, Cloudflare 100s, many middleboxes
+	// sooner), and a debug page whose stream quietly dies is worse than useless.
+	sseKeepAlive time.Duration
 	conns  *connGate
 	csrf   *csrf
 	log    *slog.Logger
@@ -71,6 +76,8 @@ func New(cfg Config) *App {
 		hub:    hub.New(128),
 		rl:     ratelimit.New(cfg.RentPerHour, time.Hour),
 		ingest: ratelimit.New(cfg.IngestPerMinute, time.Minute),
+
+		sseKeepAlive: 15 * time.Second,
 		conns:  newConnGate(cfg.MaxConnsPerIP),
 		csrf:   tokens,
 		log:    slog.Default(),

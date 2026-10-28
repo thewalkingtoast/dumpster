@@ -83,8 +83,21 @@ func (a *App) handleSSEListen(w http.ResponseWriter, r *http.Request, sid string
 		flusher.Flush()
 	}
 
+	keepAlive := time.NewTicker(a.sseKeepAlive)
+	defer keepAlive.Stop()
+
 	for {
 		select {
+		case <-keepAlive.C:
+			// Valid SSE, invisible to EventSource handlers, and it keeps the
+			// connection warm through any proxy that counts idle time.
+			if _, err := io.WriteString(w, ": keep-alive\n\n"); err != nil {
+				a.closeRecord(d.ID, stored.Seq, "client write failed")
+				return
+			}
+			if canFlush {
+				flusher.Flush()
+			}
 		case <-r.Context().Done():
 			a.closeRecord(d.ID, stored.Seq, "listener disconnected")
 			return

@@ -2,6 +2,7 @@ package app
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -143,5 +144,43 @@ func TestSSEEmitWithoutTokenIsForbidden(t *testing.T) {
 	}
 	if n := len(records(t, a, id)); n != 0 {
 		t.Fatalf("a forged emission recorded %d row(s)", n)
+	}
+}
+
+// A quiet stream must stay warm on its own: proxies cut idle connections, and a
+// listener that dies while nothing is being emitted looks like a broken tool.
+func TestSSEListenerKeepsAnIdleStreamWarm(t *testing.T) {
+	a := newTestApp(t)
+	a.sseKeepAlive = 20 * time.Millisecond
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.BaseURL()+"/d/"+id+"/sse", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer res.Body.Close()
+
+	sc := bufio.NewScanner(res.Body)
+	keepAlives, events := 0, 0
+	for sc.Scan() {
+		line := sc.Text()
+		switch {
+		case strings.HasPrefix(line, ": keep-alive"):
+			keepAlives++
+		case strings.HasPrefix(line, "event:"):
+			events++
+		}
+	}
+	if keepAlives < 3 {
+		t.Fatalf("keep-alives = %d, want at least 3 on an idle stream", keepAlives)
+	}
+	if events != 0 {
+		t.Fatalf("idle stream delivered %d events, want none", events)
 	}
 }
