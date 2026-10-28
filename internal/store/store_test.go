@@ -264,3 +264,34 @@ func TestRecordSizeCountsStructuredDecodedValues(t *testing.T) {
 		t.Fatalf("recordSize = %d, want at least %d", got, body)
 	}
 }
+
+// Streaming protocols create the record before any payload exists, so the size
+// has to be written back afterwards — and the byte accounting has to follow it.
+func TestPatchReqWritesPayloadBackAndAdjustsAccounting(t *testing.T) {
+	s := New(Limits{MaxRecords: 10, MaxBytes: 1 << 20}, time.Hour)
+	d, _ := s.Create("10.0.0.1")
+	rec, err := s.Add(d.ID, &model.Record{Kind: model.KindGRPC, Req: &model.Request{Protocol: "grpc"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := s.bytes
+
+	updated, err := s.PatchReq(d.ID, rec.Seq, func(req *model.Request) {
+		req.BodyBytes = 4096
+		req.BodyText = strings.Repeat("p", 4096)
+	})
+	if err != nil {
+		t.Fatalf("PatchReq: %v", err)
+	}
+	if updated.Req.BodyBytes != 4096 || len(updated.Req.BodyText) != 4096 {
+		t.Fatalf("payload not written back: %+v", updated.Req)
+	}
+	if s.bytes <= before {
+		t.Fatalf("accounting did not follow the new payload: %d -> %d", before, s.bytes)
+	}
+
+	recs, _ := s.List(d.ID)
+	if recs[0].Req.BodyBytes != 4096 {
+		t.Fatalf("stored record still reports %d bytes", recs[0].Req.BodyBytes)
+	}
+}

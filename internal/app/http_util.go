@@ -63,6 +63,19 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // snapshot would otherwise carry megabytes.
 const maxInlineText = 64 << 10
 
+// payloadPreview renders the first message of a streaming protocol for the
+// request panel, capped exactly like an HTTP body so a stream cannot smuggle a
+// megabyte past the inline budget.
+func payloadPreview(b []byte) (text, b64 string) {
+	if len(b) > maxInlineText {
+		b = b[:maxInlineText]
+	}
+	if utf8.Valid(b) {
+		return string(b), ""
+	}
+	return "", base64.StdEncoding.EncodeToString(b)
+}
+
 // readBody reads at most max bytes and reports whether it truncated.
 func readBody(body io.Reader, max int) (data []byte, truncated bool) {
 	data, err := io.ReadAll(io.LimitReader(body, int64(max)+1))

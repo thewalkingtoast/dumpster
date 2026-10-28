@@ -19,6 +19,10 @@ type Backend interface {
 	Add(sid string, rec *model.Record) (model.Record, error)
 	AppendEvent(sid string, seq uint64, ev model.Event) (model.Record, error)
 	Close(sid string, seq uint64, note string) (model.Record, error)
+	// PatchReq edits a stored record's request in place. Streaming protocols
+	// create a record when a connection opens, but the payload's size and first
+	// bytes are only known once messages start arriving.
+	PatchReq(sid string, seq uint64, fn func(*model.Request)) (model.Record, error)
 	List(sid string) ([]model.Record, bool)
 	DeleteExpired(now time.Time) []string
 	Len() int

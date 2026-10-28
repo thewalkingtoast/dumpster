@@ -57,6 +57,14 @@ func TestGRPCDumpsRawMessageByPath(t *testing.T) {
 	if len(rec.Events) != 1 || rec.Events[0].Text != "ping" {
 		t.Fatalf("events = %+v", rec.Events)
 	}
+	// The payload arrived, so the request panel must say so: an empty body_bytes
+	// reads as "nothing was sent", which is a lie the debugger cannot afford.
+	if rec.Req.BodyBytes != 4 {
+		t.Fatalf("body_bytes = %d, want 4", rec.Req.BodyBytes)
+	}
+	if rec.Req.BodyText != "ping" {
+		t.Fatalf("body_text = %q, want ping", rec.Req.BodyText)
+	}
 	if !rec.Closed {
 		t.Fatal("record should be closed when the RPC returns")
 	}

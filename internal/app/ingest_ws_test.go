@@ -55,6 +55,13 @@ func TestWSIngestEchoesAndRecordsFrames(t *testing.T) {
 	if len(rec.Events) != 1 || rec.Events[0].Text != "hello" {
 		t.Fatalf("events = %+v, want one 'hello'", rec.Events)
 	}
+	// A socket that carried a frame must not report an empty body either.
+	if rec.Req.BodyBytes != 5 {
+		t.Fatalf("body_bytes = %d, want 5", rec.Req.BodyBytes)
+	}
+	if rec.Req.BodyText != "hello" {
+		t.Fatalf("body_text = %q, want hello", rec.Req.BodyText)
+	}
 	if !rec.Closed {
 		t.Fatal("record should be closed once the socket closes")
 	}

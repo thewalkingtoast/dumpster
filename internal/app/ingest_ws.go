@@ -47,12 +47,34 @@ func (a *App) handleWSIngest(w http.ResponseWriter, r *http.Request, sid string)
 	}
 	a.publishNew(d.ID, &stored)
 
+	// Same problem as gRPC, but longer-lived: a socket can stream for an hour, so
+	// the running total is written back on the first frame and refreshed at close.
+	var first []byte
+	total := 0
+	flushBody := func() {
+		if total == 0 {
+			return
+		}
+		if updated, err := a.store.PatchReq(d.ID, stored.Seq, func(req *model.Request) {
+			req.BodyBytes = total
+			req.BodyText, req.BodyBase64 = payloadPreview(first)
+		}); err == nil {
+			a.publishUpdate(d.ID, &updated)
+		}
+	}
+
 	ctx := r.Context()
 	for {
 		typ, data, err := c.Read(ctx)
 		if err != nil {
+			flushBody()
 			a.closeRecord(d.ID, stored.Seq, closeNote(err))
 			return
+		}
+		total += len(data)
+		if first == nil {
+			first = data
+			flushBody()
 		}
 		ev := model.Event{At: time.Now(), Dir: "in", Type: frameType(typ), Bytes: len(data)}
 		if utf8.Valid(data) {

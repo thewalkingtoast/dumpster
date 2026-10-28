@@ -102,6 +102,49 @@ func (s *Store) Create(owner string) (model.Dumpster, error) {
 	return model.Dumpster{}, errors.New("could not mint a unique dumpster id")
 }
 
+// enforceLocked applies both ceilings, oldest first: a debug page is read
+// newest-first, so the tail is the part nobody is looking at.
+func (s *Store) enforceLocked(e *entry) {
+	for over := len(e.records) - s.limits.MaxRecords; over > 0; over-- {
+		s.dropOldestLocked(e)
+	}
+	if limit := s.limits.MaxBytesPerDumpster; limit > 0 {
+		for e.bytes > int64(limit) && len(e.records) > 1 {
+			s.dropOldestLocked(e)
+		}
+	}
+}
+
+func (s *Store) dropOldestLocked(e *entry) {
+	drop := e.records[0]
+	sz := recordSize(drop)
+	e.records = e.records[1:]
+	e.bytes -= sz
+	s.bytes -= sz
+	e.dropped++
+}
+
+// PatchReq edits a stored record's request and returns the updated copy.
+func (s *Store) PatchReq(sid string, seq uint64, fn func(*model.Request)) (model.Record, error) {
+	e, ok := s.entry(sid)
+	if !ok {
+		return model.Record{}, ErrNotFound
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	r := e.find(seq)
+	if r == nil || r.Req == nil {
+		return model.Record{}, ErrNotFound
+	}
+	before := recordSize(r)
+	fn(r.Req)
+	delta := recordSize(r) - before
+	e.bytes += delta
+	s.bytes += delta
+	s.enforceLocked(e)
+	return *r, nil
+}
+
 // recordSize approximates the bytes a record retains. It sums the strings and
 // headers rather than re-encoding to JSON: encoding on the ingest path would cost
 // more than the memory it measures, and this only needs to be proportional to be
@@ -248,26 +291,7 @@ func (s *Store) Add(sid string, rec *model.Record) (model.Record, error) {
 	e.bytes += size
 	s.bytes += size
 
-	// Oldest first, for both ceilings: a debug page is read newest-first, so the
-	// tail is the part nobody is looking at.
-	for over := len(e.records) - s.limits.MaxRecords; over > 0; over-- {
-		drop := e.records[0]
-		sz := recordSize(drop)
-		e.records = e.records[1:]
-		e.bytes -= sz
-		s.bytes -= sz
-		e.dropped++
-	}
-	if limit := s.limits.MaxBytesPerDumpster; limit > 0 {
-		for e.bytes > int64(limit) && len(e.records) > 1 {
-			drop := e.records[0]
-			sz := recordSize(drop)
-			e.records = e.records[1:]
-			e.bytes -= sz
-			s.bytes -= sz
-			e.dropped++
-		}
-	}
+	s.enforceLocked(e)
 	return stored, nil
 }
 

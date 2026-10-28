@@ -226,6 +226,15 @@ func (b *Backend) AppendEvent(sid string, seq uint64, ev model.Event) (model.Rec
 }
 
 // Close marks a record finished.
+// PatchReq edits a stored record's request and republishes it.
+func (b *Backend) PatchReq(sid string, seq uint64, fn func(*model.Request)) (model.Record, error) {
+	return b.mutate(sid, seq, func(rec *model.Record) {
+		if rec.Req != nil {
+			fn(rec.Req)
+		}
+	})
+}
+
 func (b *Backend) Close(sid string, seq uint64, note string) (model.Record, error) {
 	return b.mutate(sid, seq, func(rec *model.Record) {
 		rec.Closed = true

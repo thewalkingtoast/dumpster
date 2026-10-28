@@ -75,6 +75,7 @@ func (a *App) handleGRPCStream(_ any, stream grpc.ServerStream) error {
 	a.publishNew(d.ID, &stored)
 
 	var first []byte
+	total := 0
 	for {
 		var msg rawproto.Message
 		err := stream.RecvMsg(&msg)
@@ -85,6 +86,7 @@ func (a *App) handleGRPCStream(_ any, stream grpc.ServerStream) error {
 			a.closeRecord(d.ID, stored.Seq, "recv: "+err.Error())
 			return err
 		}
+		total += len(msg.Body)
 		if first == nil {
 			first = msg.Body
 		}
@@ -95,6 +97,16 @@ func (a *App) handleGRPCStream(_ any, stream grpc.ServerStream) error {
 			ev.Base64 = base64.StdEncoding.EncodeToString(msg.Body)
 		}
 		if updated, err := a.store.AppendEvent(d.ID, stored.Seq, ev); err == nil {
+			a.publishUpdate(d.ID, &updated)
+		}
+	}
+	// The record was created before any bytes arrived, so the payload is written
+	// back now — otherwise the request panel claims the RPC carried nothing.
+	if total > 0 {
+		if updated, err := a.store.PatchReq(d.ID, stored.Seq, func(req *model.Request) {
+			req.BodyBytes = total
+			req.BodyText, req.BodyBase64 = payloadPreview(first)
+		}); err == nil {
 			a.publishUpdate(d.ID, &updated)
 		}
 	}
