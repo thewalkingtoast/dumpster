@@ -281,15 +281,39 @@ func TestExamplesMatchTheServedScheme(t *testing.T) {
 	src := string(js)
 
 	if strings.Contains(src, `websocat "ws://`) {
-		t.Fatal("the websocket example still hardcodes ws:// and will be blocked as mixed content over https")
+		t.Fatal("the websocket example hardcodes ws:// and is blocked as mixed content over https")
 	}
-	if !strings.Contains(src, "location.protocol === 'https:' ? 'wss' : 'ws'") {
-		t.Fatal("the websocket example does not derive its scheme from the page")
+	if !strings.Contains(src, "${TLS ? 'wss' : 'ws'}") {
+		t.Fatal("the websocket example does not follow the TLS switch")
 	}
-	if !strings.Contains(src, "GRPC_TLS ? '-insecure' : '-plaintext'") {
-		t.Fatal("the grpc example does not follow whether the listener has TLS")
+	if !strings.Contains(src, "TLS ? '-insecure' : '-plaintext'") {
+		t.Fatal("the grpc example does not follow the TLS switch")
 	}
-	if !strings.Contains(src, "body.dataset.grpcTls") {
-		t.Fatal("the page never reads data-grpc-tls, so GRPC_TLS can only be false")
+	if !strings.Contains(src, "body.dataset.tls") {
+		t.Fatal("the page never reads data-tls, so the switch can only ever read false")
+	}
+	// The live feed keeps using location.protocol: that socket really is in the
+	// browser, so only the copy-paste example follows the server's switch.
+}
+
+// The switch has to reach the markup, or app.js reads an attribute that is not
+// there and every deployment looks like plaintext.
+func TestDebugPageCarriesTheTLSSwitch(t *testing.T) {
+	for _, tc := range []struct {
+		on   bool
+		want string
+	}{{true, `data-tls="true"`}, {false, `data-tls="false"`}} {
+		var buf bytes.Buffer
+		err := Templates.ExecuteTemplate(&buf, "debug.html", map[string]any{
+			"ID":     "01a183a8-f05f-75a3-91f6-010285188788",
+			"TLS":    tc.on,
+			"Origin": "https://dumpster.example",
+		})
+		if err != nil {
+			t.Fatalf("execute debug.html: %v", err)
+		}
+		if !strings.Contains(buf.String(), tc.want) {
+			t.Fatalf("TLS=%v: page is missing %s", tc.on, tc.want)
+		}
 	}
 }

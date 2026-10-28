@@ -45,7 +45,7 @@ curl -X POST "http://localhost:8080/d/$ID/sse/emit?count=5&data=hello"
 wait
 
 # grpc (needs grpcurl)
-# add -insecure in place of -plaintext when the server runs with -grpc-tls-cert
+# add -insecure in place of -plaintext when the server runs with -tls
 grpcurl -plaintext -import-path examples -proto dumpster.proto \
   -H "x-dumpster-id: $ID" -d '{"payload":"aGVsbG8="}' \
   localhost:8081 dumpster.Ingest/Anything
@@ -83,6 +83,7 @@ Flags wins over `DUMPSTER_*` env, env wins over defaults.
 | `-base-url` | `DUMPSTER_BASE_URL` | derived from the bound port |
 | `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off |
 | `-trust-real-ip` | `DUMPSTER_TRUST_REAL_IP` | off |
+| `-tls` | `DUMPSTER_TLS` | off — gRPC is h2c, examples say `ws://` |
 | `-grpc-tls-cert` / `-grpc-tls-key` | `DUMPSTER_GRPC_TLS_CERT` / `_KEY` | unset — plaintext h2c |
 | `-ingest-per-minute` | `DUMPSTER_INGEST_PER_MINUTE` | `600` |
 | `-max-conns-per-ip` | `DUMPSTER_MAX_CONNS_PER_IP` | `64` |

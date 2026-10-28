@@ -43,10 +43,14 @@ func (a *App) newGRPCServer(creds credentials.TransportCredentials) *grpc.Server
 func (a *App) grpcTransportCreds() (credentials.TransportCredentials, error) {
 	cert, key := a.cfg.GRPCTLSCert, a.cfg.GRPCTLSKey
 	switch {
-	case cert == "" && key == "":
-		return nil, nil
+	case !a.cfg.TLS && cert == "" && key == "":
+		return nil, nil // plaintext h2c, and nothing on the page claims otherwise
+	case !a.cfg.TLS:
+		// A certificate without the switch means the operator believes something
+		// that is not true: refuse rather than pick one of the two stories.
+		return nil, fmt.Errorf("grpc tls cert/key set but -tls is off: enable -tls or remove them")
 	case cert == "" || key == "":
-		return nil, fmt.Errorf("grpc tls needs both a cert and a key (cert=%q key=%q)", cert, key)
+		return nil, fmt.Errorf("-tls is on but grpc needs both a cert and a key (cert=%q key=%q)", cert, key)
 	}
 	creds, err := credentials.NewServerTLSFromFile(cert, key)
 	if err != nil {

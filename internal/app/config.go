@@ -29,8 +29,12 @@ type Config struct {
 	PublicTCP  string
 	PublicUDP  string
 
-	// gRPC over TLS. Set both or neither: serving plaintext h2c while the operator
-	// believes TLS is on is the worst kind of silent failure.
+	// TLS is the single statement of intent: this app is reachable over TLS
+	// (https/wss). It decides whether gRPC requires a certificate and whether the
+	// page advertises wss://, so the two can never disagree.
+	TLS bool
+
+	// Material for the gRPC listener. Only meaningful when TLS is on.
 	GRPCTLSCert string
 	GRPCTLSKey  string
 
@@ -114,6 +118,9 @@ func (c Config) FromEnv() Config {
 	}
 	if v := os.Getenv("DUMPSTER_PUBLIC_TCP"); v != "" {
 		c.PublicTCP = v
+	}
+	if v := os.Getenv("DUMPSTER_TLS"); v != "" {
+		c.TLS = v == "1" || strings.EqualFold(v, "true")
 	}
 	if v := os.Getenv("DUMPSTER_GRPC_TLS_CERT"); v != "" {
 		c.GRPCTLSCert = v

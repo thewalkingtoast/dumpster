@@ -86,6 +86,7 @@ func grpcClientTLS(t *testing.T, a *App) *grpc.ClientConn {
 func TestGRPCServesTLSWhenConfigured(t *testing.T) {
 	certPath, keyPath := selfSignedCert(t)
 	a := newTestApp(t, func(c *Config) {
+		c.TLS = true
 		c.GRPCTLSCert = certPath
 		c.GRPCTLSKey = keyPath
 	})
@@ -131,13 +132,64 @@ func TestGRPCRefusesHalfATLSConfig(t *testing.T) {
 	cfg.GRPCAddr = "127.0.0.1:0"
 	cfg.TCPAddr = "127.0.0.1:0"
 	cfg.UDPAddr = "127.0.0.1:0"
+	cfg.TLS = true
 	cfg.GRPCTLSCert = certPath // key deliberately missing
 
 	err := New(cfg).Start()
 	if err == nil {
 		t.Fatal("Start succeeded with a cert but no key: the listener would be plaintext")
 	}
-	if !strings.Contains(err.Error(), "needs both") {
+	if !strings.Contains(err.Error(), "needs both a cert and a key") {
 		t.Fatalf("error = %v, want it to name the missing half", err)
+	}
+}
+
+// A certificate without -tls means the operator believes TLS is on while the
+// switch says otherwise. Refusing is the only honest reading: serve TLS and the
+// page still advertises ws://, or serve plaintext while a cert sits there.
+func TestGRPCRefusesACertWithoutTheTLSFlag(t *testing.T) {
+	certPath, keyPath := selfSignedCert(t)
+
+	cfg := DefaultConfig()
+	cfg.HTTPAddr = "127.0.0.1:0"
+	cfg.GRPCAddr = "127.0.0.1:0"
+	cfg.TCPAddr = "127.0.0.1:0"
+	cfg.UDPAddr = "127.0.0.1:0"
+	cfg.TLS = false
+	cfg.GRPCTLSCert = certPath
+	cfg.GRPCTLSKey = keyPath
+
+	err := New(cfg).Start()
+	if err == nil {
+		t.Fatal("Start succeeded with a certificate while -tls was off")
+	}
+	if !strings.Contains(err.Error(), "-tls is off") {
+		t.Fatalf("error = %v, want it to name the contradiction", err)
+	}
+}
+
+// The switch is what the page reads, so gRPC and the copy-paste examples cannot
+// drift apart.
+func TestTLSSwitchDrivesGRPC(t *testing.T) {
+	certPath, keyPath := selfSignedCert(t)
+
+	off := newTestApp(t)
+	if off.cfg.TLS {
+		t.Fatal("the test app claims TLS by default")
+	}
+	if creds, err := off.grpcTransportCreds(); err != nil || creds != nil {
+		t.Fatalf("plaintext app returned creds (creds=%v err=%v)", creds, err)
+	}
+
+	on := newTestApp(t, func(c *Config) {
+		c.TLS = true
+		c.GRPCTLSCert = certPath
+		c.GRPCTLSKey = keyPath
+	})
+	if !on.cfg.TLS {
+		t.Fatal("the switch did not stick")
+	}
+	if creds, err := on.grpcTransportCreds(); err != nil || creds == nil {
+		t.Fatalf("TLS app returned no creds (err=%v)", err)
 	}
 }
