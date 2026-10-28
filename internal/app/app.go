@@ -152,13 +152,37 @@ func (a *App) Start() error {
 }
 
 // Shutdown stops accepting, drains the HTTP server, and ends the reaper.
+// Shutdown drains in the order that keeps the ctx budget useful.
+//
+// HTTP goes first because it is the only listener whose handlers can be
+// mid-request, and it is the only one that honours the deadline. Keep-alives are
+// disabled first so idle connections are closed rather than held open.
+//
+// gRPC goes second, and is bounded explicitly: GracefulStop has no deadline of
+// its own, so a stuck stream would otherwise hang the shutdown forever. If the
+// budget runs out we fall back to a hard Stop.
+//
+// The remaining listeners are closed last, after which the app context is
+// cancelled to retire the reaper and any pub/sub relay.
 func (a *App) Shutdown(ctx context.Context) error {
-	a.cancel()
-	if a.store != nil {
-		_ = a.store.Shutdown()
+	if a.httpSrv != nil {
+		a.httpSrv.SetKeepAlivesEnabled(false)
+		if err := a.httpSrv.Shutdown(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
 	}
 	if a.grpcSrv != nil {
-		a.grpcSrv.GracefulStop()
+		stopped := make(chan struct{})
+		go func() {
+			a.grpcSrv.GracefulStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-ctx.Done():
+			a.grpcSrv.Stop()
+			<-stopped
+		}
 	}
 	if a.tcpLis != nil {
 		_ = a.tcpLis.Close()
@@ -166,12 +190,10 @@ func (a *App) Shutdown(ctx context.Context) error {
 	if a.udpConn != nil {
 		_ = a.udpConn.Close()
 	}
-	if a.httpSrv == nil {
-		return nil
+	if a.store != nil {
+		_ = a.store.Shutdown()
 	}
-	if err := a.httpSrv.Shutdown(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
+	a.cancel()
 	return nil
 }
 
