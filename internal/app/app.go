@@ -223,7 +223,16 @@ func (a *App) openStore() (store.Backend, error) {
 			MaxEvents:    a.cfg.MaxEvents,
 			MaxDumpsters: a.cfg.MaxDumpsters,
 			MaxPerIP:     a.cfg.MaxPerIP,
+
+			MaxBytesPerDumpster: a.cfg.MaxBytesPerDumpster,
+			MaxBytes:            a.cfg.MaxBytes,
 		}, a.cfg.TTL), nil
+	}
+	// The byte ceilings are enforced by the in-memory store. Redis keeps records
+	// out of this process, so its own maxmemory policy is the equivalent control.
+	if a.cfg.MaxBytes > 0 || a.cfg.MaxBytesPerDumpster > 0 {
+		a.log.Warn("byte budgets not applied to the redis backend; use redis maxmemory",
+			"max_bytes", a.cfg.MaxBytes, "max_bytes_per_dumpster", a.cfg.MaxBytesPerDumpster)
 	}
 	return redisstore.New(a.ctx, redisstore.Options{
 		URL:          a.cfg.RedisURL,

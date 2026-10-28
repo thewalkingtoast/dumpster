@@ -72,9 +72,12 @@ type Request struct {
 	ContentLen  int64               `json:"content_length,omitempty"`
 	BodyBytes   int                 `json:"body_bytes"`
 	Truncated   bool                `json:"truncated,omitempty"`
-	BodyText    string              `json:"body_text,omitempty"`
-	BodyBase64  string              `json:"body_base64,omitempty"`
-	Decoded     *Decoded            `json:"decoded,omitempty"`
+	// BodySkipped means the board was over its byte budget when this arrived, so
+	// only the metadata was kept. BodyBytes still reports the real size.
+	BodySkipped bool     `json:"body_skipped,omitempty"`
+	BodyText    string   `json:"body_text,omitempty"`
+	BodyBase64  string   `json:"body_base64,omitempty"`
+	Decoded     *Decoded `json:"decoded,omitempty"`
 }
 
 // Event is one frame, chunk, datagram or emitted SSE event inside a record.

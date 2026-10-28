@@ -29,6 +29,13 @@ type Limits struct {
 	MaxEvents    int
 	MaxDumpsters int // 0 = unlimited
 	MaxPerIP     int // 0 = unlimited
+
+	// Byte ceilings, in approximate retained bytes. They bound memory rather than
+	// counts: MaxRecords and MaxDumpsters multiply, so a thousand dumpsters of
+	// five hundred 1 MiB records is terabytes no matter how small each cap looks.
+	// Zero disables either one.
+	MaxBytesPerDumpster int
+	MaxBytes            int
 }
 
 // Store is a map of dumpsters, each behind its own mutex, so ingestion into one
@@ -40,6 +47,7 @@ type Store struct {
 
 	mu    sync.RWMutex
 	dumps map[string]*entry
+	bytes int64 // approx bytes retained across every dumpster
 }
 
 type entry struct {
@@ -48,6 +56,8 @@ type entry struct {
 	owner   string          // renter's ip, for the per-caller cap
 	records []*model.Record // oldest first; List reverses
 	nextSeq uint64
+	bytes   int64
+	dropped int // records evicted by a byte ceiling, for the page to report
 }
 
 // New returns an empty store. Non-positive record/event caps fall back to 500.
@@ -90,6 +100,75 @@ func (s *Store) Create(owner string) (model.Dumpster, error) {
 		return d, nil
 	}
 	return model.Dumpster{}, errors.New("could not mint a unique dumpster id")
+}
+
+// recordSize approximates the bytes a record retains. It sums the strings and
+// headers rather than re-encoding to JSON: encoding on the ingest path would cost
+// more than the memory it measures, and this only needs to be proportional to be
+// a usable budget.
+func recordSize(r *model.Record) int64 {
+	const overhead = 320 // struct, slice headers and timestamps; roughly constant
+	n := int64(overhead)
+	if r.Req != nil {
+		n += int64(len(r.Req.Path) + len(r.Req.Query) + len(r.Req.Host) + len(r.Req.Subpath))
+		n += int64(len(r.Req.BodyText) + len(r.Req.BodyBase64))
+		for k, vs := range r.Req.Headers {
+			n += int64(len(k))
+			for _, v := range vs {
+				n += int64(len(v))
+			}
+		}
+		if d := r.Req.Decoded; d != nil {
+			switch v := d.Value.(type) {
+			case string:
+				n += int64(len(v))
+			case nil:
+				// stripped, only the format and size remain
+			default:
+				// A structured value costs roughly the body it was decoded from.
+				// It is only ever this large when the body was under the inline
+				// cap, so BodyBytes is already bounded here.
+				n += int64(r.Req.BodyBytes)
+			}
+		}
+	}
+	for _, ev := range r.Events {
+		n += int64(len(ev.Text)) + 32
+	}
+	for k, v := range r.Meta {
+		n += int64(len(k) + len(v))
+	}
+	return n
+}
+
+// stripBodies keeps the shape of a request and drops its payload. The byte
+// counts survive, so the page can still say how much arrived and how much was
+// kept — "40 KB arrived, body not stored" is far more useful than a blank row.
+func stripBodies(r model.Record) model.Record {
+	if r.Req == nil {
+		return r
+	}
+	req := *r.Req
+	req.BodyText = ""
+	req.BodyBase64 = ""
+	req.BodySkipped = true
+	if req.Decoded != nil {
+		d := *req.Decoded
+		d.Value = nil
+		d.Truncated = true
+		req.Decoded = &d
+	}
+	out := r
+	out.Req = &req
+	if len(r.Events) > 0 {
+		evs := make([]model.Event, len(r.Events))
+		for i, ev := range r.Events {
+			ev.Text = ""
+			evs[i] = ev
+		}
+		out.Events = evs
+	}
+	return out
 }
 
 // countByOwnerLocked counts the caller's live dumpsters. Expired entries are
@@ -155,9 +234,39 @@ func (s *Store) Add(sid string, rec *model.Record) (model.Record, error) {
 	if stored.Events == nil {
 		stored.Events = []model.Event{}
 	}
+
+	// Over the board budget, keep the shape of the request but not the payload.
+	// Refusing the write would blind the tool exactly when it is needed, and the
+	// headers and timings are usually what the caller came for anyway.
+	size := recordSize(&stored)
+	if s.limits.MaxBytes > 0 && s.bytes+size > int64(s.limits.MaxBytes) {
+		stored = stripBodies(stored)
+		size = recordSize(&stored)
+	}
+
 	e.records = append(e.records, &stored)
-	if over := len(e.records) - s.limits.MaxRecords; over > 0 {
-		e.records = append([]*model.Record(nil), e.records[over:]...)
+	e.bytes += size
+	s.bytes += size
+
+	// Oldest first, for both ceilings: a debug page is read newest-first, so the
+	// tail is the part nobody is looking at.
+	for over := len(e.records) - s.limits.MaxRecords; over > 0; over-- {
+		drop := e.records[0]
+		sz := recordSize(drop)
+		e.records = e.records[1:]
+		e.bytes -= sz
+		s.bytes -= sz
+		e.dropped++
+	}
+	if limit := s.limits.MaxBytesPerDumpster; limit > 0 {
+		for e.bytes > int64(limit) && len(e.records) > 1 {
+			drop := e.records[0]
+			sz := recordSize(drop)
+			e.records = e.records[1:]
+			e.bytes -= sz
+			s.bytes -= sz
+			e.dropped++
+		}
 	}
 	return stored, nil
 }
@@ -237,6 +346,10 @@ func (s *Store) DeleteExpired(now time.Time) []string {
 		expired := !e.dump.ExpiresAt.After(now)
 		e.mu.Unlock()
 		if expired {
+			e.mu.Lock()
+			s.bytes -= e.bytes
+			e.bytes = 0
+			e.mu.Unlock()
 			delete(s.dumps, sid)
 			gone = append(gone, sid)
 		}

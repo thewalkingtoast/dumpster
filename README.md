@@ -97,6 +97,31 @@ payloads holds ~65 MB instead of ~1.4 GB.
 (typically ~4×; a 500-record snapshot is tens of megabytes otherwise). SSE and
 WebSocket responses are never buffered through the compressor.
 
+### Byte budgets
+
+Counts alone do not bound memory — they multiply. 500 records × 131 KB × 50,000
+dumpsters is terabytes however small each cap looks, so there are two ceilings
+measured in bytes:
+
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-max-bytes-per-dumpster` | `DUMPSTER_MAX_BYTES_PER_DUMPSTER` | 8 MiB | retained records per dumpster; oldest evicted first |
+| `-max-bytes` | `DUMPSTER_MAX_BYTES` | 4 GiB | retained records across the whole board |
+
+Per-dumpster overrun drops the **oldest** records, which is the end of a
+newest-first page nobody is reading. Board overrun does not refuse traffic: the
+record is still written, but only its shape — headers, timings, `body_bytes` —
+survives, marked `"body_skipped": true`. A debug tool that stops recording when
+things go wrong is a debug tool that fails when you need it.
+
+Both ceilings apply to the in-memory backend, which is where the memory is.
+Records in Redis live outside this process; use Redis `maxmemory` there, and the
+server logs a warning at startup if you set a byte budget alongside `-redis`.
+
+Sizes are approximated from the retained strings rather than by re-encoding each
+record, because encoding on the ingest path would cost more than the memory it
+measures.
+
 ### Storage
 
 By default dumpsters live in the process's memory: fast, zero dependencies, and

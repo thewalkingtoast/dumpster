@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,5 +166,101 @@ func TestExpiredDumpstersDoNotCountAgainstTheirCaller(t *testing.T) {
 	now = now.Add(2 * time.Hour) // the first dumpster is now a corpse
 	if _, err := s.Create("1.1.1.1"); err != nil {
 		t.Fatalf("expired dumpster still counted against the caller: %v", err)
+	}
+}
+
+// A single dumpster must not be able to grow without bound: once it passes its
+// byte allowance the oldest records go, exactly like the record-count trim.
+func TestPerDumpsterByteBudgetEvictsOldest(t *testing.T) {
+	s := New(Limits{MaxRecords: 100, MaxBytesPerDumpster: 8 << 10}, time.Hour)
+	d, err := s.Create("10.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 20; i++ {
+		rec := &model.Record{
+			Kind: model.KindHTTP,
+			Req:  &model.Request{BodyText: strings.Repeat("x", 1024), BodyBytes: 1024},
+		}
+		if _, err := s.Add(d.ID, rec); err != nil {
+			t.Fatalf("add %d: %v", i, err)
+		}
+	}
+	recs, ok := s.List(d.ID)
+	if !ok {
+		t.Fatal("dumpster vanished")
+	}
+	if len(recs) >= 20 {
+		t.Fatalf("byte budget never evicted: %d records retained", len(recs))
+	}
+	if recs[0].Seq != 20 {
+		t.Fatalf("newest record has seq %d, want 20 — eviction removed the wrong end", recs[0].Seq)
+	}
+}
+
+// Hitting the whole-board budget must degrade a record, not reject it: a debug
+// tool that refuses traffic is useless exactly when something is going wrong.
+func TestGlobalByteBudgetStripsBodiesInsteadOfRefusing(t *testing.T) {
+	s := New(Limits{MaxRecords: 100, MaxBytes: 8 << 10}, time.Hour)
+	fat := func() *model.Record {
+		return &model.Record{
+			Kind: model.KindHTTP,
+			Req:  &model.Request{BodyText: strings.Repeat("y", 4096), BodyBytes: 4096},
+		}
+	}
+	first, _ := s.Create("10.0.0.1")
+	second, _ := s.Create("10.0.0.2")
+	if _, err := s.Add(first.ID, fat()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add(first.ID, fat()); err != nil {
+		t.Fatal(err)
+	}
+
+	rec, err := s.Add(second.ID, fat())
+	if err != nil {
+		t.Fatalf("an add over the budget must still be recorded: %v", err)
+	}
+	if !rec.Req.BodySkipped {
+		t.Fatal("body was stored after the board budget filled")
+	}
+	if rec.Req.BodyText != "" {
+		t.Fatal("body text retained despite the budget")
+	}
+	if rec.Req.BodyBytes != 4096 {
+		t.Fatalf("body_bytes = %d; the page must still report how much arrived", rec.Req.BodyBytes)
+	}
+}
+
+// Accounting has to be symmetric: expired dumpsters must hand their bytes back,
+// or the board budget would ratchet shut over time.
+func TestByteAccountingIsReleasedOnExpiry(t *testing.T) {
+	s := New(Limits{MaxRecords: 100, MaxBytes: 1 << 20}, time.Hour)
+	now := time.Unix(0, 0)
+	s.now = func() time.Time { return now }
+
+	d, _ := s.Create("10.0.0.1")
+	s.Add(d.ID, &model.Record{Kind: model.KindHTTP, Req: &model.Request{BodyText: strings.Repeat("z", 8192)}})
+	if s.bytes == 0 {
+		t.Fatal("no bytes were accounted")
+	}
+	now = now.Add(2 * time.Hour)
+	s.DeleteExpired(now)
+	if s.bytes != 0 {
+		t.Fatalf("bytes after expiry = %d, want 0", s.bytes)
+	}
+}
+
+// A structured decoded value (a JSON object) costs about as much as the body it
+// came from. Counting it as a constant made the budget under-report by tens of
+// kilobytes per record, so the global ceiling never tripped.
+func TestRecordSizeCountsStructuredDecodedValues(t *testing.T) {
+	const body = 40000
+	r := &model.Record{Req: &model.Request{
+		BodyBytes: body,
+		Decoded:   &model.Decoded{Format: "json", Value: map[string]any{"sku": "A1"}},
+	}}
+	if got := recordSize(r); got < body {
+		t.Fatalf("recordSize = %d, want at least %d", got, body)
 	}
 }

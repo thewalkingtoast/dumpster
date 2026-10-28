@@ -37,9 +37,14 @@ type Config struct {
 	MaxEvents    int
 	MaxDumpsters int // global ceiling; 0 = unlimited
 	MaxPerIP     int // per-caller ceiling; 0 = unlimited
-	RentPerHour  int
-	ConnIdle     time.Duration
-	TrustProxy   bool
+
+	// Byte ceilings for the in-memory backend. Counts multiply, so these are the
+	// only knobs that actually bound memory.
+	MaxBytesPerDumpster int
+	MaxBytes            int
+	RentPerHour         int
+	ConnIdle            time.Duration
+	TrustProxy          bool
 }
 
 // DefaultConfig is the configuration the plan's expected outputs assume.
@@ -58,8 +63,11 @@ func DefaultConfig() Config {
 		MaxEvents:    500,
 		MaxDumpsters: 50000, // whole-board ceiling; protects the map, not the bytes
 		MaxPerIP:     500,   // each address may hold 500 live dumpsters
-		RentPerHour:  10,
-		ConnIdle:     90 * time.Second,
+
+		MaxBytesPerDumpster: 8 << 20, // 8 MiB of records per dumpster
+		MaxBytes:            4 << 30, // 4 GiB across the whole board
+		RentPerHour:         10,
+		ConnIdle:            90 * time.Second,
 	}
 }
 
@@ -115,6 +123,12 @@ func (c Config) FromEnv() Config {
 	}
 	if v, ok := intEnv("DUMPSTER_MAX_PER_IP"); ok {
 		c.MaxPerIP = v
+	}
+	if v, ok := intEnv("DUMPSTER_MAX_BYTES_PER_DUMPSTER"); ok {
+		c.MaxBytesPerDumpster = v
+	}
+	if v, ok := intEnv("DUMPSTER_MAX_BYTES"); ok {
+		c.MaxBytes = v
 	}
 	if v, ok := intEnv("DUMPSTER_RENT_PER_HOUR"); ok {
 		c.RentPerHour = v
