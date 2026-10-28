@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="internal/web/static/icon-192.png" width="96" height="96" alt="Neon dumpster sign">
+</p>
+
 # Dumpster
 
 **Throw requests at it and watch them land.** One link accepts HTTP, gRPC,
