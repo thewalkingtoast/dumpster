@@ -17,7 +17,9 @@
 <body class="home">
   <main class="hero">
     <div class="corner">{{template "themeToggle"}}</div>
-    <h1>{{.Title}}</h1>
+    {{/* Error titles wrap to several lines, so the mark aligns to the first one
+         rather than centring against the whole block. */}}
+    <h1 class="brand brand-top">{{template "logo"}}<span>{{.Title}}</span></h1>
     <p class="lede">{{.Message}}</p>
     {{if .Rent}}
     <form method="post" action="/rent">

@@ -206,23 +206,28 @@ func TestEveryPageHasAThemeSwitch(t *testing.T) {
 	}
 }
 
-// The landing title and the dumpster header both lead with the logo.
+// Every page leads with the logo: landing, dumpster header and error page.
 func TestLogoLeadsTheTitle(t *testing.T) {
-	for _, page := range []string{"index.html", "debug.html"} {
+	for _, tc := range []struct{ page, title string }{
+		{"index.html", ">Dumpster</span>"},
+		{"debug.html", ">Dumpster</span>"},
+		{"error.html", ">Something broke</span>"},
+	} {
 		var buf bytes.Buffer
-		if err := TemplatesFor("v1").ExecuteTemplate(&buf, page, map[string]any{
-			"ID": "01a183a8-f05f-75a3-91f6-010285188788",
+		if err := TemplatesFor("v1").ExecuteTemplate(&buf, tc.page, map[string]any{
+			"ID":    "01a183a8-f05f-75a3-91f6-010285188788",
+			"Title": "Something broke",
 		}); err != nil {
-			t.Fatalf("%s: %v", page, err)
+			t.Fatalf("%s: %v", tc.page, err)
 		}
 		out := buf.String()
 		logo := strings.Index(out, `<svg class="logo"`)
-		word := strings.Index(out, ">Dumpster</span>")
+		word := strings.Index(out, tc.title)
 		if logo < 0 || word < 0 {
-			t.Fatalf("%s: logo at %d, title at %d", page, logo, word)
+			t.Fatalf("%s: logo at %d, title at %d", tc.page, logo, word)
 		}
 		if logo > word {
-			t.Fatalf("%s draws the logo after the title", page)
+			t.Fatalf("%s draws the logo after the title", tc.page)
 		}
 	}
 }
@@ -246,5 +251,23 @@ func TestOnlyThemeScriptOwnsTheSwitch(t *testing.T) {
 		if !strings.Contains(string(theme), want) {
 			t.Fatalf("theme.js does not handle %s", want)
 		}
+	}
+}
+
+// A logo beside a wrapping headline costs a phone ~45px of its 353px measure,
+// which pushed the error title from three lines to five. It stacks instead.
+func TestWrappingHeadlineStacksTheLogoOnPhones(t *testing.T) {
+	raw, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	css := strings.ReplaceAll(string(raw), "\n", "")
+	if !strings.Contains(css, "@media (max-width: 480px){") {
+		t.Fatal("no narrow-screen rule: the logo will squeeze the error headline")
+	}
+	media := css[strings.Index(css, "@media (max-width: 480px){"):]
+	window := media[:min(400, len(media))]
+	if !strings.Contains(window, ".brand-top{flex-direction:column") {
+		t.Fatal("the narrow-screen rule does not stack .brand-top")
 	}
 }
