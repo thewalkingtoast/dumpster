@@ -56,7 +56,7 @@ func DefaultConfig() Config {
 		MaxBody:      1 << 20,
 		MaxRecords:   500,
 		MaxEvents:    500,
-		MaxDumpsters: 0,   // no global ceiling: the per-caller cap is the guard
+		MaxDumpsters: 50000, // whole-board ceiling; protects the map, not the bytes
 		MaxPerIP:     500, // each address may hold 500 live dumpsters
 		RentPerHour:  10,
 		ConnIdle:     90 * time.Second,

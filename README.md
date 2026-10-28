@@ -75,11 +75,12 @@ Flags wins over `DUMPSTER_*` env, env wins over defaults.
 | `-grpc` | `DUMPSTER_GRPC_ADDR` | `:8081` |
 | `-tcp` | `DUMPSTER_TCP_ADDR` | `:8082` |
 | `-udp` | `DUMPSTER_UDP_ADDR` | `:8083` |
-| `-ttl` | `DUMPSTER_TTL` | `12h` |
+| `-ttl` | `DUMPSTER_TTL` | `3h` |
 | `-max-body` | `DUMPSTER_MAX_BODY` | `1048576` |
 | `-base-url` | `DUMPSTER_BASE_URL` | derived from the bound port |
 | `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off |
-| — | `DUMPSTER_MAX_DUMPSTERS` | `10000` |
+| `-max` | `DUMPSTER_MAX_DUMPSTERS` | `50000` |
+| `-max-per-ip` | `DUMPSTER_MAX_PER_IP` | `500` |
 | — | `DUMPSTER_RENT_PER_HOUR` | `10` |
 | `-redis` | `DUMPSTER_REDIS_URL` | unset — memory backend |
 

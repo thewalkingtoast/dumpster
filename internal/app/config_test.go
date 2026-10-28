@@ -19,8 +19,8 @@ func TestDefaultConfig(t *testing.T) {
 	if c.RentPerHour != 10 || c.MaxRecords != 500 || c.MaxPerIP != 500 {
 		t.Fatalf("limits = %+v", c)
 	}
-	if c.MaxDumpsters != 0 {
-		t.Fatalf("MaxDumpsters = %d, want 0 (no global ceiling)", c.MaxDumpsters)
+	if c.MaxDumpsters != 50000 {
+		t.Fatalf("MaxDumpsters = %d, want 50000", c.MaxDumpsters)
 	}
 }
 

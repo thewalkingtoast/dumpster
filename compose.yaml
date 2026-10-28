@@ -11,7 +11,7 @@ services:
     environment:
       DUMPSTER_TTL: 3h
       DUMPSTER_MAX_BODY: "1048576"
-      DUMPSTER_MAX_DUMPSTERS: "10000"
+      DUMPSTER_MAX_DUMPSTERS: "50000"
       DUMPSTER_REDIS_URL: redis://redis:6379/0
       # set these when behind a proxy:
       # DUMPSTER_BASE_URL: https://dumpster.example
