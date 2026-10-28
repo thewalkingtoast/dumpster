@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adam/dumpster/internal/app"
+	"github.com/thewalkingtoast/dumpster/internal/app"
 )
 
 // version is stamped at build time (-X main.version=...) and logged at startup,

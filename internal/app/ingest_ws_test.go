@@ -7,7 +7,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestWSIngestEchoesAndRecordsFrames(t *testing.T) {

@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // Backend is every operation the app needs from a dumpster store. The memory

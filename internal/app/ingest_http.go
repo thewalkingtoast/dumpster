@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // handleHTTPIngest records any request aimed at /d/{id}/… . The endpoint is a

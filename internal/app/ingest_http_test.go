@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func records(t *testing.T, a *App, id string) []model.Record {

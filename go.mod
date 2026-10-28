@@ -1,4 +1,4 @@
-module github.com/adam/dumpster
+module github.com/thewalkingtoast/dumpster
 
 go 1.27.3
 

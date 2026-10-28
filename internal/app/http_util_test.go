@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestReadBodyTruncates(t *testing.T) {

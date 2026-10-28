@@ -478,7 +478,7 @@ verified by running `docker run --rm golang:1.27.3 go version`.
 git init -b main
 git config user.email  # if this prints nothing:
 # git config user.email "you@example.com" && git config user.name "Adam"
-./scripts/dev.sh go mod init github.com/adam/dumpster
+./scripts/dev.sh go mod init github.com/thewalkingtoast/dumpster
 ```
 
 **Step 3: Verify `go.mod` came back to the sandbox**
@@ -490,7 +490,7 @@ cat go.mod
 Expected (the `go` directive may read `1.27.3` or `1.27`):
 
 ```
-module github.com/adam/dumpster
+module github.com/thewalkingtoast/dumpster
 
 go 1.27.3
 ```
@@ -640,7 +640,7 @@ func TestKindValid(t *testing.T) {
 ./scripts/dev.sh go test ./internal/model -count=1
 ```
 
-Expected: `FAIL	github.com/adam/dumpster/internal/model [setup failed]` / `undefined: Kind`.
+Expected: `FAIL	github.com/thewalkingtoast/dumpster/internal/model [setup failed]` / `undefined: Kind`.
 
 **Step 3: Write the implementation**
 
@@ -752,7 +752,7 @@ type Record struct {
 ./scripts/dev.sh go test ./internal/model -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/model	0.00Xs`
+Expected: `ok  	github.com/thewalkingtoast/dumpster/internal/model	0.00Xs`
 
 **Step 5: Commit**
 
@@ -887,7 +887,7 @@ func Hex(canonical string) string { return strings.ReplaceAll(canonical, "-", ""
 ./scripts/dev.sh go test ./internal/id -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/id	0.00Xs`
+Expected: `ok  	github.com/thewalkingtoast/dumpster/internal/id	0.00Xs`
 
 **Step 5: Commit**
 
@@ -970,8 +970,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 var (
@@ -1081,7 +1081,7 @@ func (s *Store) entry(sid string) (*entry, bool) {
 ./scripts/dev.sh go test ./internal/store -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/store	0.00Xs`
+Expected: `ok  	github.com/thewalkingtoast/dumpster/internal/store	0.00Xs`
 
 **Step 5: Commit**
 
@@ -1133,7 +1133,7 @@ func TestAddAssignsSeqTrimsAndListsNewestFirst(t *testing.T) {
 }
 ```
 
-Add `"github.com/adam/dumpster/internal/model"` to the test imports.
+Add `"github.com/thewalkingtoast/dumpster/internal/model"` to the test imports.
 
 **Step 2: Run it, expect failure**
 
@@ -1196,7 +1196,7 @@ func (s *Store) List(sid string) ([]model.Record, bool) {
 ./scripts/dev.sh go test ./internal/store -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/store	0.00Xs` (3 tests).
+Expected: `ok  	github.com/thewalkingtoast/dumpster/internal/store	0.00Xs` (3 tests).
 
 **Step 5: Commit**
 
@@ -1391,8 +1391,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 ```
 
@@ -1737,7 +1737,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 const (
@@ -2148,7 +2148,7 @@ func intEnv(key string) (int, bool) {
 ./scripts/dev.sh go test ./internal/app -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/app	0.00Xs`
+Expected: `ok  	github.com/thewalkingtoast/dumpster/internal/app	0.00Xs`
 
 **Step 5: Commit**
 
@@ -2574,7 +2574,7 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 ./scripts/dev.sh go test ./internal/web -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/web	0.00Xs` (2 tests).
+Expected: `ok  	github.com/thewalkingtoast/dumpster/internal/web	0.00Xs` (2 tests).
 
 **Step 8: Commit**
 
@@ -2791,9 +2791,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adam/dumpster/internal/hub"
-	"github.com/adam/dumpster/internal/ratelimit"
-	"github.com/adam/dumpster/internal/store"
+	"github.com/thewalkingtoast/dumpster/internal/hub"
+	"github.com/thewalkingtoast/dumpster/internal/ratelimit"
+	"github.com/thewalkingtoast/dumpster/internal/store"
 )
 
 // Addrs are the addresses the listeners actually bound to.
@@ -2962,7 +2962,7 @@ func (a *App) reapLoop() {
 ./scripts/dev.sh go test ./internal/app -count=1
 ```
 
-Expected: `ok  	github.com/adam/dumpster/internal/app	0.00Xs` (7 tests = 3 from Task 14's `config_test.go` + 4 here). Every count below is the whole `internal/app` package, config tests included.
+Expected: `ok  	github.com/thewalkingtoast/dumpster/internal/app	0.00Xs` (7 tests = 3 from Task 14's `config_test.go` + 4 here). Every count below is the whole `internal/app` package, config tests included.
 
 **Step 8: Commit**
 
@@ -2993,7 +2993,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestReadBodyTruncates(t *testing.T) {
@@ -3204,8 +3204,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/adam/dumpster/internal/decode"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/decode"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 ```
 
@@ -3335,8 +3335,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/adam/dumpster/internal/store"
-	"github.com/adam/dumpster/internal/web"
+	"github.com/thewalkingtoast/dumpster/internal/store"
+	"github.com/thewalkingtoast/dumpster/internal/web"
 )
 
 // render executes a template into a buffer first, so a template error cannot
@@ -3412,7 +3412,7 @@ package app
 import (
 	"net/http"
 
-	"github.com/adam/dumpster/internal/web"
+	"github.com/thewalkingtoast/dumpster/internal/web"
 )
 
 // routes builds the mux. The "/" pattern is the catch-all: the debug page, its
@@ -3474,7 +3474,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func records(t *testing.T, a *App, id string) []model.Record {
@@ -3595,8 +3595,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // handleHTTPIngest records any request aimed at /d/{id}/… . The endpoint is a
@@ -3685,7 +3685,7 @@ func (a *App) mustDumpster(w http.ResponseWriter, sid string) (model.Dumpster, b
 ```go
 package app
 
-import "github.com/adam/dumpster/internal/model"
+import "github.com/thewalkingtoast/dumpster/internal/model"
 
 // wsMsg is the single shape pushed to dashboard sockets and snapshots.
 type wsMsg struct {
@@ -4084,7 +4084,7 @@ func (a *App) publicAddr(explicit, bound string) string {
 }
 ```
 
-Add `"net"`, `"net/url"` and `"github.com/adam/dumpster/internal/id"` to `pages.go` imports.
+Add `"net"`, `"net/url"` and `"github.com/thewalkingtoast/dumpster/internal/id"` to `pages.go` imports.
 
 **Step 5: Register the page route** — in `internal/app/routes.go`, add one line before the catch-all:
 
@@ -4257,8 +4257,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 ```
 
@@ -4761,7 +4761,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestSSEStreamsAndRecordsEvents(t *testing.T) {
@@ -4840,7 +4840,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // handleSSEIngest streams `count` server-sent events back to the caller and
@@ -5004,7 +5004,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestWSIngestEchoesAndRecordsFrames(t *testing.T) {
@@ -5116,7 +5116,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // handleWSIngest accepts any WebSocket client, records every frame it receives,
@@ -5227,7 +5227,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 ```
 
@@ -5410,8 +5410,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/rawproto"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/rawproto"
 )
 
 func grpcClient(t *testing.T, a *App) *grpc.ClientConn {
@@ -5530,9 +5530,9 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/rawproto"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/rawproto"
 )
 
 // newGRPCServer builds a server that accepts any service and method. The forced
@@ -5676,9 +5676,9 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/rawproto"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/rawproto"
 )
 ```
 
@@ -5798,7 +5798,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/adam/dumpster/internal/rawproto"
+	"github.com/thewalkingtoast/dumpster/internal/rawproto"
 )
 
 func main() {
@@ -5888,7 +5888,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestTCPRecordsIDLineAndChunks(t *testing.T) {
@@ -5973,8 +5973,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // acceptTCP runs the accept loop for raw TCP until the listener closes.
@@ -6170,7 +6170,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestUDPDatagramBecomesOneRecord(t *testing.T) {
@@ -6272,8 +6272,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // readUDP reads datagrams until the socket closes. Datagrams whose first 36
@@ -6545,7 +6545,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adam/dumpster/internal/app"
+	"github.com/thewalkingtoast/dumpster/internal/app"
 )
 
 func main() {
@@ -7323,7 +7323,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestMemoryImplementsBackend(t *testing.T) {
@@ -7378,7 +7378,7 @@ package store
 import (
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // Backend is every operation the app needs from a dumpster store. The memory
@@ -7478,8 +7478,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/store"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/store"
 )
 
 func newBackend(t *testing.T, tweak ...func(*Options)) (*Backend, *miniredis.Miniredis) {
@@ -7659,9 +7659,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/store"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/store"
 )
 
 // Options configures a Backend.
@@ -8110,7 +8110,7 @@ func (a *App) openStore() (store.Backend, error) {
 }
 ```
 
-Add the import `"github.com/adam/dumpster/internal/redisstore"`, and in `Shutdown`, before the HTTP drain:
+Add the import `"github.com/thewalkingtoast/dumpster/internal/redisstore"`, and in `Shutdown`, before the HTTP drain:
 
 ```go
 	if a.store != nil {
@@ -8421,7 +8421,7 @@ func (b *RedisBroker) channel(dumpsterID string) string {
 	}
 ```
 
-Add the import `"github.com/adam/dumpster/internal/id"` if it is not already there.
+Add the import `"github.com/thewalkingtoast/dumpster/internal/id"` if it is not already there.
 
 **Step 6: Run to verify pass**
 

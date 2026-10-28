@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/adam/dumpster/internal/web"
+	"github.com/thewalkingtoast/dumpster/internal/web"
 )
 
 // routes builds the mux. The "/" pattern is the catch-all: the debug page, its

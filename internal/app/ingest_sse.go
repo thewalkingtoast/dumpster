@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // SSE is the one protocol where the dumpster is the publisher rather than the

@@ -9,8 +9,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/store"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/store"
 )
 
 func newBackend(t *testing.T, tweak ...func(*Options)) (*Backend, *miniredis.Miniredis) {

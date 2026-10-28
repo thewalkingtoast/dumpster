@@ -16,11 +16,11 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/adam/dumpster/internal/hub"
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/ratelimit"
-	"github.com/adam/dumpster/internal/redisstore"
-	"github.com/adam/dumpster/internal/store"
+	"github.com/thewalkingtoast/dumpster/internal/hub"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/ratelimit"
+	"github.com/thewalkingtoast/dumpster/internal/redisstore"
+	"github.com/thewalkingtoast/dumpster/internal/store"
 )
 
 // Addrs are the addresses the listeners actually bound to.

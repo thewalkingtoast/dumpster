@@ -7,8 +7,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // wsMsg is the single shape pushed to dashboard sockets and snapshots.

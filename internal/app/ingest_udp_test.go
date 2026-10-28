@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestUDPDatagramBecomesOneRecord(t *testing.T) {

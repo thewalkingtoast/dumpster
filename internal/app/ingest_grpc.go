@@ -16,9 +16,9 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/rawproto"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/rawproto"
 )
 
 // newGRPCServer builds a server that accepts any service and method. The forced

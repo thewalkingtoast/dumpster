@@ -9,9 +9,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/adam/dumpster/internal/id"
-	"github.com/adam/dumpster/internal/store"
-	"github.com/adam/dumpster/internal/web"
+	"github.com/thewalkingtoast/dumpster/internal/id"
+	"github.com/thewalkingtoast/dumpster/internal/store"
+	"github.com/thewalkingtoast/dumpster/internal/web"
 )
 
 // render executes a template into a buffer first, so a template error cannot

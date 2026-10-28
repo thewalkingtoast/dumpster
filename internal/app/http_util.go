@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/adam/dumpster/internal/decode"
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/decode"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 type connAcceptedKey struct{}

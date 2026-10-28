@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 func TestYardIsFull(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adam/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/model"
 )
 
 // An emission with nobody listening must still leave a row: otherwise the page

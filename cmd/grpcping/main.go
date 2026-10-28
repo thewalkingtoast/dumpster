@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/adam/dumpster/internal/rawproto"
+	"github.com/thewalkingtoast/dumpster/internal/rawproto"
 )
 
 func main() {

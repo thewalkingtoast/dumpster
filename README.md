@@ -313,4 +313,4 @@ actually running.
 
 ## License
 
-No license file yet — add one before you rely on this for anything.
+MIT — see [LICENSE](LICENSE).

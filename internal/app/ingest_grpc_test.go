@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/adam/dumpster/internal/model"
-	"github.com/adam/dumpster/internal/rawproto"
+	"github.com/thewalkingtoast/dumpster/internal/model"
+	"github.com/thewalkingtoast/dumpster/internal/rawproto"
 )
 
 func grpcClient(t *testing.T, a *App) *grpc.ClientConn {
