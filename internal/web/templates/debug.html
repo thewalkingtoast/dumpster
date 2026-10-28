@@ -33,27 +33,27 @@
     <aside class="send">
       <h2>How to send</h2>
 
-      <h3>HTTP <span class="hint">any method, any path</span></h3>
+      <h3><span class="badge k-http">HTTP</span>&nbsp;<span class="hint">any method, any path</span></h3>
       <pre class="cmd" data-cmd="http"></pre>
 
-      <h3>SSE <span class="hint">the dumpster is the publisher</span>
+      <h3><span class="badge k-sse">SSE</span>&nbsp;<span class="hint">the dumpster is the publisher</span>
         <button class="mini" id="btn-sse" type="button">Send 5 SSE events</button></h3>
       <pre class="cmd" data-cmd="sse"></pre>
-      <p class="hint">Two halves, deliberately separate. The command opens a <em>listener</em>
+      <p class="hint">The command opens a <em>listener</em>
         and holds it open; the button makes the dumpster <em>send</em> five events to whoever
         is listening. Run the command first, then press the button. With nobody listening the
         emission is still recorded — the row says how many listeners it reached.</p>
 
-      <h3>gRPC <span class="hint">path or x-dumpster-id</span></h3>
+      <h3><span class="badge k-grpc">gRPC</span>&nbsp;<span class="hint">path or x-dumpster-id</span></h3>
       <pre class="cmd" data-cmd="grpc"></pre>
 
-      <h3>WebSocket <span class="hint">echoes your frames</span></h3>
+      <h3><span class="badge k-ws">WebSocket</span>&nbsp;<span class="hint">echoes your frames</span></h3>
       <pre class="cmd" data-cmd="ws"></pre>
 
-      <h3>TCP <span class="hint">id on the first line</span></h3>
+      <h3><span class="badge k-tcp">TCP</span>&nbsp;<span class="hint">id on the first line</span></h3>
       <pre class="cmd" data-cmd="tcp"></pre>
 
-      <h3>UDP <span class="hint">id in the first 36 bytes</span></h3>
+      <h3><span class="badge k-udp">UDP</span>&nbsp;<span class="hint">id in the first 36 bytes</span></h3>
       <pre class="cmd" data-cmd="udp"></pre>
 
       <p class="fine">Click any command to copy it.</p>
