@@ -125,6 +125,7 @@ func (a *App) handleDumpsterPage(w http.ResponseWriter, r *http.Request) {
 		"Origin":     a.BaseURL(),
 		"ExpiresAt":  d.ExpiresAt.UTC().Format(time.RFC3339),
 		"PublicGRPC": a.publicAddr(a.cfg.PublicGRPC, a.Addrs().GRPC),
+		"GrpcTLS":    a.cfg.GRPCTLSCert != "",
 		"PublicTCP":  a.publicAddr(a.cfg.PublicTCP, a.Addrs().TCP),
 		"PublicUDP":  a.publicAddr(a.cfg.PublicUDP, a.Addrs().UDP),
 		"CSRF":       a.csrf.Token(),

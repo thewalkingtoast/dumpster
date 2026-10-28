@@ -28,6 +28,8 @@ func main() {
 	flag.StringVar(&cfg.PublicGRPC, "public-grpc", cfg.PublicGRPC, "address shown to users for grpc")
 	flag.StringVar(&cfg.PublicTCP, "public-tcp", cfg.PublicTCP, "address shown to users for tcp")
 	flag.StringVar(&cfg.PublicUDP, "public-udp", cfg.PublicUDP, "address shown to users for udp")
+	flag.StringVar(&cfg.GRPCTLSCert, "grpc-tls-cert", cfg.GRPCTLSCert, "PEM certificate for the grpc listener (needs -grpc-tls-key)")
+	flag.StringVar(&cfg.GRPCTLSKey, "grpc-tls-key", cfg.GRPCTLSKey, "PEM key for the grpc listener (needs -grpc-tls-cert)")
 	flag.DurationVar(&cfg.TTL, "ttl", cfg.TTL, "how long a dumpster lives")
 	flag.IntVar(&cfg.MaxBody, "max-body", cfg.MaxBody, "bytes of body kept per request")
 	flag.IntVar(&cfg.MaxDumpsters, "max", cfg.MaxDumpsters, "global cap on live dumpsters (0 = none)")

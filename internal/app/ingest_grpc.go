@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -22,13 +24,35 @@ import (
 // newGRPCServer builds a server that accepts any service and method. The forced
 // codec means the payload is never parsed as protobuf, so no .proto file is
 // needed to dump a call.
-func (a *App) newGRPCServer() *grpc.Server {
-	return grpc.NewServer(
+func (a *App) newGRPCServer(creds credentials.TransportCredentials) *grpc.Server {
+	opts := []grpc.ServerOption{
 		grpc.ForceServerCodec(rawproto.Codec{}),
 		grpc.MaxRecvMsgSize(a.cfg.MaxBody),
 		grpc.MaxSendMsgSize(a.cfg.MaxBody),
 		grpc.UnknownServiceHandler(a.handleGRPCStream),
-	)
+	}
+	if creds != nil {
+		opts = append(opts, grpc.Creds(creds))
+	}
+	return grpc.NewServer(opts...)
+}
+
+// grpcTransportCreds loads the configured certificate, or returns nil for
+// plaintext h2c. Half a configuration is refused outright rather than quietly
+// falling back to an unencrypted listener.
+func (a *App) grpcTransportCreds() (credentials.TransportCredentials, error) {
+	cert, key := a.cfg.GRPCTLSCert, a.cfg.GRPCTLSKey
+	switch {
+	case cert == "" && key == "":
+		return nil, nil
+	case cert == "" || key == "":
+		return nil, fmt.Errorf("grpc tls needs both a cert and a key (cert=%q key=%q)", cert, key)
+	}
+	creds, err := credentials.NewServerTLSFromFile(cert, key)
+	if err != nil {
+		return nil, fmt.Errorf("grpc tls: %w", err)
+	}
+	return creds, nil
 }
 
 // handleGRPCStream records one RPC and echoes its first message back.

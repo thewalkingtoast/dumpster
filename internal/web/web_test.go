@@ -269,3 +269,27 @@ func TestCopyShowsASingleFadingToast(t *testing.T) {
 		}
 	}
 }
+
+// The examples people copy must match the page they are standing on: over https
+// the socket has to be wss, and a gRPC listener with a certificate must not be
+// advertised as -plaintext.
+func TestExamplesMatchTheServedScheme(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(js)
+
+	if strings.Contains(src, `websocat "ws://`) {
+		t.Fatal("the websocket example still hardcodes ws:// and will be blocked as mixed content over https")
+	}
+	if !strings.Contains(src, "location.protocol === 'https:' ? 'wss' : 'ws'") {
+		t.Fatal("the websocket example does not derive its scheme from the page")
+	}
+	if !strings.Contains(src, "GRPC_TLS ? '-insecure' : '-plaintext'") {
+		t.Fatal("the grpc example does not follow whether the listener has TLS")
+	}
+	if !strings.Contains(src, "body.dataset.grpcTls") {
+		t.Fatal("the page never reads data-grpc-tls, so GRPC_TLS can only be false")
+	}
+}

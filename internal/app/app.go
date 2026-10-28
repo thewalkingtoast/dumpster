@@ -100,7 +100,13 @@ func (a *App) Start() error {
 		return fmt.Errorf("listen grpc: %w", err)
 	}
 	a.grpcLis = gl
-	a.grpcSrv = a.newGRPCServer()
+	creds, err := a.grpcTransportCreds()
+	if err != nil {
+		_ = hl.Close()
+		_ = gl.Close()
+		return err
+	}
+	a.grpcSrv = a.newGRPCServer(creds)
 
 	tl, err := net.Listen("tcp", a.cfg.TCPAddr)
 	if err != nil {

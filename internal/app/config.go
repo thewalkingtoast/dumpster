@@ -29,6 +29,11 @@ type Config struct {
 	PublicTCP  string
 	PublicUDP  string
 
+	// gRPC over TLS. Set both or neither: serving plaintext h2c while the operator
+	// believes TLS is on is the worst kind of silent failure.
+	GRPCTLSCert string
+	GRPCTLSKey  string
+
 	TTL       time.Duration
 	ReapEvery time.Duration
 
@@ -109,6 +114,12 @@ func (c Config) FromEnv() Config {
 	}
 	if v := os.Getenv("DUMPSTER_PUBLIC_TCP"); v != "" {
 		c.PublicTCP = v
+	}
+	if v := os.Getenv("DUMPSTER_GRPC_TLS_CERT"); v != "" {
+		c.GRPCTLSCert = v
+	}
+	if v := os.Getenv("DUMPSTER_GRPC_TLS_KEY"); v != "" {
+		c.GRPCTLSKey = v
 	}
 	if v := os.Getenv("DUMPSTER_PUBLIC_UDP"); v != "" {
 		c.PublicUDP = v

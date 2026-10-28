@@ -6,6 +6,7 @@
   const ORIGIN = body.dataset.origin;
   const CSRF = body.dataset.csrf || '';
   const GRPC = body.dataset.grpc;
+  const GRPC_TLS = body.dataset.grpcTls === 'true';
   const TCP = body.dataset.tcp;
   const UDP = body.dataset.udp;
 
@@ -321,8 +322,10 @@
     const commands = {
       http: `curl -sS -X POST '${ORIGIN}/d/${ID}/anything' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"hello":"dumpster"}'`,
       sse: `curl -N '${ORIGIN}/d/${ID}/sse'`,
-      grpc: `grpcurl -plaintext -import-path examples -proto dumpster.proto \\\n  -H 'x-dumpster-id: ${ID}' \\\n  -d '{"payload":"aGVsbG8="}' ${GRPC} dumpster.Ingest/Anything`,
-      ws: `websocat "ws://${originHost.host}:${originHost.port}/d/${ID}/ws"`,
+      grpc: `grpcurl ${GRPC_TLS ? '-insecure' : '-plaintext'} -import-path examples -proto dumpster.proto \\\n  -H 'x-dumpster-id: ${ID}' \\\n  -d '{"payload":"aGVsbG8="}' ${GRPC} dumpster.Ingest/Anything`,
+      // Over https the page is https, so the socket must be wss or the browser
+      // refuses it as mixed content.
+      ws: `websocat "${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
       tcp: `printf '%s\\nhello\\n' '${ID}' | nc ${tcp.host} ${tcp.port}`,
       udp: `printf '%s|hello' '${ID}' | nc -u -w1 ${udp.host} ${udp.port}`,
     };

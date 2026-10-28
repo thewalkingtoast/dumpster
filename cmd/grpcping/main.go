@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/adam/dumpster/internal/rawproto"
@@ -21,6 +23,7 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:8081", "gRPC address")
 	id := flag.String("id", "", "dumpster uuid")
 	msg := flag.String("msg", "hello", "payload to send")
+	useTLS := flag.Bool("tls", false, "dial over TLS; the certificate is not verified (this is a debug tool, not a bank)")
 	flag.Parse()
 
 	if *id == "" {
@@ -28,7 +31,12 @@ func main() {
 		os.Exit(2)
 	}
 
-	cc, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	var creds credentials.TransportCredentials = insecure.NewCredentials()
+	if *useTLS {
+		creds = credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
+	}
+
+	cc, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "grpcping: dial: %v\n", err)
 		os.Exit(1)
