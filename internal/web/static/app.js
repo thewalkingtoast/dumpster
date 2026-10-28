@@ -211,7 +211,10 @@
       el('span', { class: 'badge k-' + rec.kind, text: String(kind).toUpperCase() }),
       el('span', { class: 'sum', text: summary(rec) }),
       el('span', { class: 'when' },
-        bytes(sizeOf(rec)) + ' · ' + ((rec.remote && rec.remote.ip) || '?') + ' · ',
+        // Split so a phone can drop the address: a clipped IPv6 is the least
+        // useful thing on the line, and the size and age are what a glance needs.
+        el('span', { class: 'size', text: bytes(sizeOf(rec)) + ' · ' }),
+        el('span', { class: 'ip', text: ((rec.remote && rec.remote.ip) || '?') + ' · ' }),
         el('span', { class: 'age', 'data-at': rec.received_at, text: ago(rec.received_at) })));
     const li = el('li', {
       class: 'rec' + (rec.closed ? ' is-closed' : ''),

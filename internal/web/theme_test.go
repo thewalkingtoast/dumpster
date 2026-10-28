@@ -340,3 +340,54 @@ func TestRowsCannotWidenThePage(t *testing.T) {
 		t.Fatalf("the meta text has no way to truncate: %s", when)
 	}
 }
+
+// On a phone the row's meta keeps the size and the age: a clipped IPv6 address is
+// the least useful thing on the line. Desktop keeps all three.
+func TestPhoneRowsKeepSizeAndAgeOnly(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	for _, want := range []string{"class: 'when'", "class: 'size'", "class: 'ip'", "class: 'age'"} {
+		if !strings.Contains(string(js), want) {
+			t.Fatalf("the row no longer renders %s, so the narrow-screen rule has nothing to hide", want)
+		}
+	}
+
+	raw, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	css := strings.ReplaceAll(string(raw), "\n", "")
+
+	media := strings.Index(css, "@media (max-width: 480px){")
+	if media < 0 {
+		t.Fatal("no narrow-screen media query")
+	}
+	// The rule has to live inside that block: outside it, the address would vanish
+	// on every screen.
+	if inner := braceSpan(css[media:]); !strings.Contains(inner, ".row .ip{display:none}") {
+		t.Fatalf("the address is not hidden inside the narrow-screen block: %.200s", inner)
+	}
+}
+
+// braceSpan returns the contents of the block starting at the first '{'.
+func braceSpan(s string) string {
+	open := strings.Index(s, "{")
+	if open < 0 {
+		return ""
+	}
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return s[open+1 : i]
+			}
+		}
+	}
+	return s[open+1:]
+}

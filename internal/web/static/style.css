@@ -186,6 +186,9 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 @media (max-width: 480px){
   .brand-top{flex-direction:column;gap:.3em}
   .brand-top .logo{margin-top:0;width:.78em;height:.78em}
+  /* A phone shows the size and the age; the client address is the part worth
+     losing first, and truncating an IPv6 mid-address helps nobody. */
+  .row .ip{display:none}
 }
 /* The logo is a square tile; it scales with the heading it sits beside. */
 .logo{display:block;width:1em;height:1em;flex:none;border-radius:22%}
