@@ -163,6 +163,24 @@ func postRent(t *testing.T, a *App, xff string) (*http.Response, string, string)
 	return res, string(body), token
 }
 
+// emitSSE posts an emission the way the page's button does: with the token the
+// debug page handed to app.js.
+func emitSSE(t *testing.T, a *App, id, query string) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/sse/emit"+query, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(csrfHeader, csrfFromPage(t, a))
+	res, err := noRedirect.Do(req)
+	if err != nil {
+		t.Fatalf("POST emit: %v", err)
+	}
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	return res, string(body)
+}
+
 func rent(t *testing.T, a *App) string {
 	t.Helper()
 	res, _, _ := postRent(t, a, "")

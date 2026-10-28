@@ -119,6 +119,14 @@ func (a *App) handleSSEEmit(w http.ResponseWriter, r *http.Request, sid string) 
 		return
 	}
 
+	// Emitting makes the dumpster act, so it is gated like renting: any client may
+	// send to a dumpster, but only this page may make one speak.
+	if !a.csrfOK(r) {
+		a.renderError(w, http.StatusForbidden, "That request did not come from this page",
+			"Reload the page and press the button again.")
+		return
+	}
+
 	count := clampInt(intQuery(r, "count", 5), 1, maxEvents)
 	eventName := r.URL.Query().Get("event")
 	if eventName == "" {

@@ -4,6 +4,7 @@
   const body = document.body;
   const ID = body.dataset.id;
   const ORIGIN = body.dataset.origin;
+  const CSRF = body.dataset.csrf || '';
   const GRPC = body.dataset.grpc;
   const TCP = body.dataset.tcp;
   const UDP = body.dataset.udp;
@@ -407,7 +408,10 @@
       busy = true;
       button.disabled = true;
       try {
-        const res = await fetch(ORIGIN + '/d/' + ID + '/sse/emit?count=5', { method: 'POST' });
+        const res = await fetch(ORIGIN + '/d/' + ID + '/sse/emit?count=5', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': CSRF },
+        });
         const body = await res.json();
         const n = body.listeners || 0;
         button.textContent = n

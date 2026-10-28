@@ -14,14 +14,24 @@ func TestCorsIsWildcardForDumpstersOnly(t *testing.T) {
 	a := newTestApp(t)
 	id := rent(t, a)
 
-	for _, path := range []string{"/d/" + id + "/_records.json", "/d/" + id} {
-		res, _ := get(t, a.BaseURL()+path)
-		if got := res.Header.Get("Access-Control-Allow-Origin"); got != "*" {
-			t.Fatalf("%s: Allow-Origin = %q, want *", path, got)
-		}
+	// GET /d/<id>/sse is deliberately absent: it is a stream that never returns, so
+	// a plain GET here would hang. Ingest paths are checked with a POST instead.
+	res, _ := get(t, a.BaseURL()+"/d/"+id+"/_records.json")
+	if got := res.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("snapshot: Allow-Origin = %q, want *", got)
+	}
+	post, err := http.Post(a.BaseURL()+"/d/"+id+"/anything", "text/plain", strings.NewReader("hi"))
+	if err != nil {
+		t.Fatalf("POST ingest: %v", err)
+	}
+	post.Body.Close()
+	if got := post.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("ingest: Allow-Origin = %q, want *", got)
 	}
 
-	for _, path := range []string{"/", "/healthz"} {
+	// /d/<id> is the HTML debug page, not an API: it carries a CSRF token, so a
+	// remote page must not be able to read it.
+	for _, path := range []string{"/", "/healthz", "/d/" + id} {
 		res, _ := get(t, a.BaseURL()+path)
 		if got := res.Header.Get("Access-Control-Allow-Origin"); got != "" {
 			t.Fatalf("%s: Allow-Origin = %q, want none (its HTML carries a CSRF token)", path, got)

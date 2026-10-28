@@ -46,7 +46,7 @@ func (a *App) withHeaders(next http.Handler) http.Handler {
 		// another origin, must be able to talk to a dumpster. It stops at the
 		// dumpster boundary — the landing page embeds a CSRF token, and a remote
 		// page that could read it could rent against someone else's address.
-		if strings.HasPrefix(r.URL.Path, "/d/") {
+		if hasDumpsterSubpath(r.URL.Path) {
 			h.Set("Access-Control-Allow-Origin", "*")
 			h.Set("Access-Control-Allow-Methods", "*")
 			h.Set("Access-Control-Allow-Headers", "*")
@@ -75,6 +75,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	_ = enc.Encode(v)
+}
+
+// hasDumpsterSubpath reports whether p addresses something inside a dumpster —
+// /d/<id>/anything — as opposed to /d/<id> itself, the HTML debug page. The page
+// is the app's own UI: no machine client reads it, and it embeds a CSRF token.
+func hasDumpsterSubpath(p string) bool {
+	if !strings.HasPrefix(p, "/d/") {
+		return false
+	}
+	rest := p[len("/d/"):]
+	cut := strings.IndexByte(rest, '/')
+	return cut > 0 && cut < len(rest)-1
 }
 
 // maxInlineText caps how much body text is inlined into a record; the JSON

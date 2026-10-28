@@ -18,11 +18,7 @@ func TestSSEEmitWithNoListenersRecordsTheAttempt(t *testing.T) {
 	a := newTestApp(t)
 	id := rent(t, a)
 
-	res, err := http.Post(a.BaseURL()+"/d/"+id+"/sse/emit?count=2", "text/plain", nil)
-	if err != nil {
-		t.Fatalf("POST emit: %v", err)
-	}
-	defer res.Body.Close()
+	res, raw := emitSSE(t, a, id, "?count=2")
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", res.StatusCode)
 	}
@@ -30,7 +26,7 @@ func TestSSEEmitWithNoListenersRecordsTheAttempt(t *testing.T) {
 		Emitted   int `json:"emitted"`
 		Listeners int `json:"listeners"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+	if err := json.Unmarshal([]byte(raw), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if body.Emitted != 2 || body.Listeners != 0 {
@@ -86,11 +82,9 @@ func TestSSEListenerReceivesEmittedEvents(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 
-	postRes, err := http.Post(a.BaseURL()+"/d/"+id+"/sse/emit?count=3&event=poke&data=hi", "text/plain", nil)
-	if err != nil {
-		t.Fatalf("POST emit: %v", err)
+	if postRes, _ := emitSSE(t, a, id, "?count=3&event=poke&data=hi"); postRes.StatusCode != http.StatusOK {
+		t.Fatalf("emit status = %d, want 200", postRes.StatusCode)
 	}
-	postRes.Body.Close()
 
 	sc := bufio.NewScanner(res.Body)
 	var data []string
@@ -130,5 +124,24 @@ func TestSSEListenerReceivesEmittedEvents(t *testing.T) {
 		if ev.Dir != "out" {
 			t.Fatalf("event direction = %q, want out (the dumpster sent it)", ev.Dir)
 		}
+	}
+}
+
+// Making a dumpster speak is a state change, so it takes the same gate as
+// renting: any client may send to a dumpster, only this page may make one emit.
+func TestSSEEmitWithoutTokenIsForbidden(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	res, err := http.Post(a.BaseURL()+"/d/"+id+"/sse/emit?count=2", "text/plain", nil)
+	if err != nil {
+		t.Fatalf("POST emit: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 without a token", res.StatusCode)
+	}
+	if n := len(records(t, a, id)); n != 0 {
+		t.Fatalf("a forged emission recorded %d row(s)", n)
 	}
 }
