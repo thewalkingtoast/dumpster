@@ -202,8 +202,13 @@
 
   // -- rows -----------------------------------------------------------------
   function makeRow(rec) {
+    let kind = rec.kind;
+    if (kind === "ws" && TLS) {
+      kind = "wss";
+    }
+
     const head = el('button', { class: 'row', type: 'button' },
-      el('span', { class: 'badge k-' + rec.kind, text: String(rec.kind).toUpperCase() }),
+      el('span', { class: 'badge k-' + rec.kind, text: String(kind).toUpperCase() }),
       el('span', { class: 'sum', text: summary(rec) }),
       el('span', { class: 'when' },
         bytes(sizeOf(rec)) + ' · ' + ((rec.remote && rec.remote.ip) || '?') + ' · ',
