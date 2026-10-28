@@ -335,6 +335,18 @@ make smoke    # end-to-end against a running instance
 make up/down  # local dev container (repo bind-mounted, module cache warm)
 ```
 
+The icon set (`favicon.ico`, the PNGs, the web manifest) is generated from
+`internal/web/static/icon.svg` — a neon dumpster sign drawn as bent tubing. Edit
+the SVG, then:
+
+```bash
+python3 -m pip install cairosvg    # once
+python3 scripts/make-icons.py     # rewrites every raster in static/
+```
+
+Sizes under 32px render from a filter-free variant: at 16px the glow costs about
+half a pixel and turns four tubes into a smear.
+
 Handy companions in `cmd/`: `grpcping` (one gRPC message, no `.proto` needed —
 `-tls` for a TLS listener) and `loadgen` (concurrent load across protocols).
 

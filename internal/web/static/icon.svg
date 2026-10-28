@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Dumpster">
+  <!-- A neon dumpster sign, drawn as bent tubing rather than a filled shape, so
+       one file works as a 16px favicon and a 512px app icon.
+       Three passes make it glow: a wide spill, a tight halo, and a hot core. The
+       core is left unblurred so the tubes read as lit gas instead of fat lines.
+       Detail stays at four tubes — a rib and a wider halo both turned the small
+       render into a smear. -->
+  <defs>
+    <radialGradient id="wall" cx="50%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#211a36"/>
+      <stop offset="100%" stop-color="#090810"/>
+    </radialGradient>
+    <filter id="tube" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5.2" result="spill"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="halo"/>
+      <feMerge>
+        <feMergeNode in="spill"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="64" height="64" rx="13" fill="url(#wall)"/>
+
+  <!-- lit tubing -->
+  <g filter="url(#tube)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="16.5" width="40" height="8" rx="4"
+          stroke="#b48ce0" stroke-width="4.4"/>
+    <path d="M14.5 29.5 H49.5 L45 45.5 H19 Z"
+          stroke="#7fe6a3" stroke-width="4.4"/>
+    <circle cx="22" cy="50" r="3" stroke="#7fe6a3" stroke-width="3.2"/>
+    <circle cx="42" cy="50" r="3" stroke="#7fe6a3" stroke-width="3.2"/>
+  </g>
+
+  <!-- hot cores: the gas itself, sharp on top of its own glow -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="16.5" width="40" height="8" rx="4"
+          stroke="#f6ecff" stroke-width="1.5" opacity=".95"/>
+    <path d="M14.5 29.5 H49.5 L45 45.5 H19 Z"
+          stroke="#e8fff1" stroke-width="1.5" opacity=".95"/>
+    <circle cx="22" cy="50" r="3" stroke="#e8fff1" stroke-width="1.2"/>
+    <circle cx="42" cy="50" r="3" stroke="#e8fff1" stroke-width="1.2"/>
+  </g>
+</svg>
