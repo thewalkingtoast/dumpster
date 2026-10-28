@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -34,10 +35,22 @@ type csrf struct {
 	now    func() time.Time
 }
 
-func newCSRF() (*csrf, error) {
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return nil, err
+// minCSRFSecret is the shortest shared secret accepted. Anything shorter is not
+// worth calling a secret.
+const minCSRFSecret = 16
+
+// newCSRF returns a token minter. An empty secret means a random per-process
+// one, which invalidates every outstanding token on restart. A shared secret
+// (DUMPSTER_CSRF_SECRET) makes tokens survive a redeploy and lets several
+// instances behind a load balancer accept each other's tokens.
+func newCSRF(secret []byte) (*csrf, error) {
+	if len(secret) == 0 {
+		secret = make([]byte, 32)
+		if _, err := rand.Read(secret); err != nil {
+			return nil, err
+		}
+	} else if len(secret) < minCSRFSecret {
+		return nil, fmt.Errorf("csrf secret must be at least %d bytes, got %d", minCSRFSecret, len(secret))
 	}
 	return &csrf{secret: secret, now: time.Now}, nil
 }

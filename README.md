@@ -191,6 +191,25 @@ Both are off by default because both are spoofable if the app is reachable
 directly. Turn on **exactly one**, and only if the proxy in front overwrites the
 header rather than appending to it — see [Deploying](#deploying).
 
+### Forms and CSRF tokens
+
+Renting and emitting SSE are gated by a token embedded in the page, because both
+spend a resource on someone's behalf. The token is a timestamped nonce signed with
+a secret — no session storage needed.
+
+| Flag | Env | Default | Meaning |
+| --- | --- | --- | --- |
+| `-csrf-secret` | `DUMPSTER_CSRF_SECRET` | random per process | secret used to sign CSRF tokens; at least 16 bytes |
+
+Leave it unset and every restart invalidates the tokens in open tabs, which shows
+up as *"That request did not come from this page"* until the page is reloaded.
+Set it when you redeploy often, and **it is required for more than one instance**:
+tokens signed by instance A must be accepted by instance B, or every form breaks
+the moment a load balancer sends the POST somewhere else.
+
+Pages carrying a token are served `Cache-Control: no-store`, so a reload always
+gets a token the running process will accept.
+
 ### Storage
 
 | Flag | Env | Default | Meaning |
@@ -255,6 +274,8 @@ Health check: `GET /healthz` → `200 {"ok":true}`, or `503` with a reason.
 | Process exits: *"grpc tls cert/key set but -tls is off"* | certificate with the switch off | add `-tls` or remove the certificate |
 | Process exits: *"grpc tls: no such file"* | container can't read the cert | fix ownership/ACL for uid 10001 |
 | `403` from `/sse/emit` | missing or stale CSRF token | use the token from that dumpster's page |
+| `403` "That request did not come from this page" on Rent | page is older than the running process, so its token was signed by a previous build | reload; set `DUMPSTER_CSRF_SECRET` so tokens survive deploys |
+| Rent works on one instance, 403s behind a load balancer | per-process CSRF secret | set the same `DUMPSTER_CSRF_SECRET` everywhere |
 | `429` "too many requests" with `Retry-After` | `-ingest-per-minute` exceeded | wait, or raise the limit |
 | `429` "Your yard is full" | `-max-per-ip` reached | expire old dumpsters or raise the limit |
 | `429` on the landing page | `DUMPSTER_RENT_PER_HOUR` | wait an hour |

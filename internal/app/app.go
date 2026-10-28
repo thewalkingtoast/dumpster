@@ -60,18 +60,24 @@ type App struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// initErr is a construction-time configuration error, surfaced by Start so a
+	// bad flag exits cleanly rather than panicking inside New.
+	initErr error
 }
 
 // New builds an App. Nothing is bound until Start.
 func New(cfg Config) *App {
 	ctx, cancel := context.WithCancel(context.Background())
-	tokens, err := newCSRF()
+	tokens, err := newCSRF([]byte(cfg.CSRFSecret))
+	// A bad secret is a configuration mistake, not a crash: carry it to Start so
+	// the process exits with a message instead of a stack trace.
+	var initErr error
 	if err != nil {
-		// No entropy at startup means no safe tokens; refusing to serve is the
-		// only honest answer.
-		panic("csrf secret: " + err.Error())
+		initErr = fmt.Errorf("csrf secret: %w", err)
 	}
 	return &App{
+		initErr: initErr,
 		cfg:    cfg,
 		hub:    hub.New(128),
 		rl:     ratelimit.New(cfg.RentPerHour, time.Hour),
@@ -89,6 +95,9 @@ func New(cfg Config) *App {
 // Start binds the HTTP listener and serves it. It returns once the port is
 // bound, so callers can read Addrs immediately.
 func (a *App) Start() error {
+	if a.initErr != nil {
+		return a.initErr
+	}
 	db, err := a.openStore()
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)

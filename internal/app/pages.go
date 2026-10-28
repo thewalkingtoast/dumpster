@@ -23,7 +23,13 @@ func (a *App) render(w http.ResponseWriter, status int, name string, data any) {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	h := w.Header()
+	h.Set("Content-Type", "text/html; charset=utf-8")
+	// Every page here embeds a CSRF token minted by this process. Cached, it is a
+	// form that fails with "that request did not come from this page" and no
+	// explanation — so the page is never stored.
+	h.Set("Cache-Control", "no-store")
+	h.Set("Pragma", "no-cache")
 	w.WriteHeader(status)
 	_, _ = w.Write(buf.Bytes())
 }

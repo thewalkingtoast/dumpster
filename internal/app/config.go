@@ -34,6 +34,10 @@ type Config struct {
 	// page advertises wss://, so the two can never disagree.
 	TLS bool
 
+	// CSRFSecret makes token signing keys shared and stable. Empty means a random
+	// per-process secret: tokens die on restart and instances disagree.
+	CSRFSecret string
+
 	// Material for the gRPC listener. Only meaningful when TLS is on.
 	GRPCTLSCert string
 	GRPCTLSKey  string
@@ -118,6 +122,9 @@ func (c Config) FromEnv() Config {
 	}
 	if v := os.Getenv("DUMPSTER_PUBLIC_TCP"); v != "" {
 		c.PublicTCP = v
+	}
+	if v := os.Getenv("DUMPSTER_CSRF_SECRET"); v != "" {
+		c.CSRFSecret = v
 	}
 	if v := os.Getenv("DUMPSTER_TLS"); v != "" {
 		c.TLS = v == "1" || strings.EqualFold(v, "true")
