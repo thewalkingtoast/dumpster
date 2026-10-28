@@ -181,10 +181,7 @@
       wrap.append(el('h4', { text: 'events (' + rec.events.length + dropped + ')' }));
       const ul = el('ul', { class: 'events' });
       for (const ev of rec.events.slice(0, 200)) {
-        const row = el('li', {
-          class: 'ev ' + (ev.dir === 'out' ? 'out' : 'in'),
-          title: 'click to copy this event',
-        },
+        ul.append(el('li', { class: 'ev ' + (ev.dir === 'out' ? 'out' : 'in') },
           el('span', { class: 'ev-at', text: fmtTime(ev.at) }),
           el('span', { class: 'ev-type', text: ev.type || '' }),
           el('span', {
@@ -192,11 +189,7 @@
             text: ev.text !== undefined && ev.text !== ''
               ? ev.text
               : (ev.base64 ? '[binary ' + bytes(ev.bytes) + ']' : ''),
-          }));
-        // The payload, not the rendered placeholder: a binary event copies its
-        // base64 so it can be pasted somewhere useful.
-        row.addEventListener('click', () => copyText(ev.text || ev.base64 || '', row));
-        ul.append(row);
+          })));
       }
       wrap.append(ul);
     }
@@ -338,43 +331,18 @@
     }
   }
 
-  // navigator.clipboard only exists in a secure context, and this app is usually
-  // reached over plain http on a LAN address — precisely where an iPhone throws
-  // the API away. The textarea trick still works there, so try it rather than
-  // leaving a tap looking broken.
-  function legacyCopy(text, done) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.top = '-1000px';
-    document.body.append(ta);
-    ta.select();
-    try {
-      if (document.execCommand('copy')) done();
-    } catch {
-      /* nothing sane left to try */
-    }
-    ta.remove();
-  }
-
-  function copyText(text, node, flashClass = 'copied') {
-    if (!text) return;
-    const flash = () => {
-      node.classList.add(flashClass);
-      setTimeout(() => node.classList.remove(flashClass), 700);
-    };
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(flash, () => legacyCopy(text, flash));
-      return;
-    }
-    legacyCopy(text, flash);
-  }
-
   function wireCopy() {
     for (const pre of document.querySelectorAll('pre.cmd')) {
       pre.title = 'click to copy';
-      pre.addEventListener('click', () => copyText(pre.textContent, pre));
+      pre.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(pre.textContent);
+          pre.classList.add('copied');
+          setTimeout(() => pre.classList.remove('copied'), 600);
+        } catch {
+          // clipboard needs a secure context; the text is selectable regardless
+        }
+      });
     }
   }
 
