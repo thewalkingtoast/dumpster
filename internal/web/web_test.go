@@ -128,3 +128,24 @@ func TestDebugPageSaysTheSSEButtonAndCommandAreTheSameRequest(t *testing.T) {
 		}
 	}
 }
+
+// The row is a scanning surface, not a log line: it shows how long ago something
+// landed, and the exact instant waits in the expanded detail rather than being
+// dropped altogether.
+func TestRowsShowOnlyTheAgeAndDetailKeepsTheInstant(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	s := string(js)
+
+	if strings.Contains(s, "fmtTime(rec.received_at) + ' · '") {
+		t.Fatal("rows still print an absolute timestamp next to the age")
+	}
+	if !strings.Contains(s, "block('received', fmtTime(rec.received_at))") {
+		t.Fatal("the exact arrival time is shown nowhere; expanding a row must still reveal it")
+	}
+	if !strings.Contains(s, "'data-at': rec.received_at") {
+		t.Fatal("the row lost the timestamp its age is derived from")
+	}
+}

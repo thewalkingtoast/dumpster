@@ -134,6 +134,10 @@
       );
     }
 
+    // The row shows only "3s ago", so the exact instant lives here: expand the
+    // row when you need to know precisely when something landed.
+    block('received', fmtTime(rec.received_at));
+
     const req = rec.req || {};
     block('request', {
       protocol: req.protocol,
@@ -185,8 +189,7 @@
       el('span', { class: 'badge k-' + rec.kind, text: String(rec.kind).toUpperCase() }),
       el('span', { class: 'sum', text: summary(rec) }),
       el('span', { class: 'when' },
-        fmtTime(rec.received_at) + ' · ' + bytes(sizeOf(rec)) + ' · ' +
-          ((rec.remote && rec.remote.ip) || '?') + ' · ',
+        bytes(sizeOf(rec)) + ' · ' + ((rec.remote && rec.remote.ip) || '?') + ' · ',
         el('span', { class: 'age', 'data-at': rec.received_at, text: ago(rec.received_at) })));
     const li = el('li', {
       class: 'rec' + (rec.closed ? ' is-closed' : ''),
