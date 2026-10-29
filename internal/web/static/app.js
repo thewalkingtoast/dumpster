@@ -335,6 +335,7 @@
       wsframe: `printf 'hello\\n' | websocat -n1 "${TLS ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
       wsbinary: `printf '\\xff\\xfe' | websocat -b -n1 "${TLS ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
       wsemoji: `printf '\\xE2\\x9D\\xA4\\xEF\\xB8\\x8F' | websocat -b -n1 "${TLS ? 'wss' : 'ws'}://${location.host}/d/${ID}/ws"`,
+      wsbrowser: `let ws = new WebSocket('wss://${location.host}/d/${ID}/ws'); ws.onopen = () => ws.send('hello')`,
       tcp: `printf '%s\\nhello\\n' '${ID}' | nc ${tcp.host} ${tcp.port}`,
       udp: `printf '%s|hello' '${ID}' | nc -u -w1 ${udp.host} ${udp.port}`,
     };
