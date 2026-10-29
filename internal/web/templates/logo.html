@@ -5,15 +5,22 @@
   The logo is inline SVG rather than an <img>: it stays crisp at any size, costs
   no request, and keeps the neon colours fixed — a logo is not a theme token.
 */}}
-{{define "logo"}}<svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-        <rect width="64" height="64" rx="13" fill="#0c0b10"/>
-        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+{{define "logoArt"}}<g fill="none" stroke-linecap="round" stroke-linejoin="round">
           <rect x="12" y="16.5" width="40" height="8" rx="4" stroke="#b48ce0" stroke-width="4.4"/>
           <path d="M14.5 29.5 H49.5 L45 45.5 H19 Z" stroke="#7fe6a3" stroke-width="4.4"/>
           <circle cx="22" cy="50" r="3" stroke="#7fe6a3" stroke-width="3.2"/>
           <circle cx="42" cy="50" r="3" stroke="#7fe6a3" stroke-width="3.2"/>
-        </g>
+        </g>{{end}}
+
+{{define "logo"}}<svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <rect width="64" height="64" rx="13" fill="#0c0b10"/>
+        {{template "logoArt"}}
       </svg>{{end}}
+
+{{/* The tubes alone, without the badge's dark plate: as a page-wide watermark the
+     plate would read as a grey block on the light theme. Purely decorative, so it
+     is hidden from assistive tech and never takes a pointer event. */}}
+{{define "backdrop"}}<div class="backdrop" aria-hidden="true"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">{{template "logoArt"}}</svg></div>{{end}}
 
 {{define "themeToggle"}}<button class="theme" type="button" data-theme-toggle aria-pressed="false"
               aria-label="Switch to light mode" title="Switch to light mode">

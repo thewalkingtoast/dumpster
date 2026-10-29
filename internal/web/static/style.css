@@ -16,7 +16,29 @@ body{
 }
 a{color:var(--accent)}
 .mono{font-family:var(--mono);font-size:.86em;letter-spacing:-.01em}
-main{max-width:1180px;margin:0 auto;padding:44px 20px 80px}
+main{max-width:1180px;margin:0 auto;padding:44px 20px 80px;position:relative;z-index:1}
+/* The mark as a watermark across the right half of the page: the tubes only, a
+   sixth of the way out of the dark, angled so it reads as a ghost rather than a
+   stamp. pointer-events:none because decoration must never eat a click, and a
+   z-index beneath the content so the text stays legible through it. */
+.backdrop{
+  position:fixed;top:0;right:0;bottom:0;width:50%;
+  overflow:hidden;pointer-events:none;user-select:none;
+  opacity:.15;z-index:0;
+}
+/* The art occupies the middle ~63% of its viewBox, so a square as wide as the
+   half-page still shows the whole mark once it is turned 60°: the empty corners
+   are what the clip takes, not the tubes. */
+.backdrop svg{
+  position:absolute;top:50%;left:50%;
+  width:100%;height:auto;
+  transform:translate(-50%,-50%) rotate(60deg);
+}
+@media (max-width:700px){
+  /* Half of a phone is a sliver; give it more of the width and less of the eye. */
+  .backdrop{width:80%}
+  .backdrop svg{width:100%}
+}
 .hero{max-width:660px;padding-top:11vh}
 h1{font-size:clamp(2.1rem,5.5vw,3.2rem);line-height:1.05;margin:0 0 .45em;letter-spacing:-.02em}
 .lede{color:var(--muted);font-size:1.05rem;margin:0 0 2.2em;max-width:52ch}

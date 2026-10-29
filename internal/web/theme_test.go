@@ -391,3 +391,60 @@ func braceSpan(s string) string {
 	}
 	return s[open+1:]
 }
+
+// The mark as a watermark: on every page, behind the content, unable to take a
+// click, and drawn as tubes rather than the badge — the badge's dark plate would
+// read as a grey block on the light theme.
+func TestLogoWatermarkIsDecorationOnly(t *testing.T) {
+	logo, err := fs.ReadFile(templateFS, "templates/logo.html")
+	if err != nil {
+		t.Fatalf("read logo.html: %v", err)
+	}
+	src := string(logo)
+	start := strings.Index(src, `{{define "backdrop"}}`)
+	if start < 0 {
+		t.Fatal("no backdrop template")
+	}
+	block := src[start:]
+	if end := strings.Index(block, "{{end}}"); end > 0 {
+		block = block[:end]
+	}
+	if strings.Contains(block, `fill="#0c0b10"`) {
+		t.Fatal("the watermark carries the badge's dark plate, which is a grey block on the light theme")
+	}
+	// An SVG group outside an <svg> element draws nothing at all — silently.
+	if !strings.Contains(block, "<svg viewBox=") {
+		t.Fatal("the watermark is not wrapped in its own <svg>, so the tubes render nowhere")
+	}
+
+	for _, page := range []string{"index.html", "debug.html", "error.html"} {
+		b, err := fs.ReadFile(templateFS, "templates/"+page)
+		if err != nil {
+			t.Fatalf("read %s: %v", page, err)
+		}
+		if !strings.Contains(string(b), `{{template "backdrop"}}`) {
+			t.Fatalf("%s does not carry the watermark", page)
+		}
+	}
+
+	raw, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	css := strings.ReplaceAll(string(raw), "\n", "")
+	for _, want := range []struct{ needle, why string }{
+		{"position:fixed;top:0;right:0;bottom:0;width:50%", "the watermark does not pin itself to the right half"},
+		{"opacity:.15", "the watermark is not at 15%"},
+		{"rotate(60deg)", "the watermark is not angled 60 degrees"},
+		{"pointer-events:none", "the watermark can swallow clicks"},
+		{"z-index:0", "the watermark has no stacking order of its own"},
+	} {
+		if !strings.Contains(css, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+	// It has to sit *under* the page, or it washes over the text it is behind.
+	if !regexp.MustCompile(`main\{[^}]*z-index:1`).MatchString(css) {
+		t.Fatal("main has no z-index above the watermark: the mark will paint over the text")
+	}
+}

@@ -23,6 +23,7 @@
       data-tcp="{{.PublicTCP}}"
       data-udp="{{.PublicUDP}}"
       data-expires="{{.ExpiresAt}}">
+  {{template "backdrop"}}
   <header class="bar">
     <div class="who">
       <h1>{{template "logo"}}<span>Dumpster</span> <span class="mono">{{.ID}}</span></h1>
