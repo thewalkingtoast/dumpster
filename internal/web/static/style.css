@@ -38,7 +38,7 @@ main{max-width:1180px;margin:0 auto;padding:44px 20px 80px;position:relative;z-i
 .backdrop svg{
   position:absolute;top:100%;left:100%;
   width:68vw;height:auto;
-  transform:translate(-50%,-50%) rotate(-65deg);
+  transform:translate(-65%,-50%) rotate(-35deg);
 }
 @media (max-width:700px){
   /* A corner-anchored mark at 80vw swallows a phone; keep it a corner accent. */
