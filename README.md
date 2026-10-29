@@ -290,6 +290,141 @@ compiled in. That makes the URLs immutable, so they are served
 paired with the previous stylesheet. Requests without a stamp revalidate
 (`no-cache`) rather than being trusted.
 
+### A complete nginx config
+
+What Dokku renders for the live instance, with the hostname and container address
+changed. The three paths under `/home/dokku/dumpster/` are Dokku's per-app
+directories (config snippets, TLS material, logs); everything else is plain nginx
+and applies to any deployment. Ports `8081`–`8083` are published directly by the
+container — no proxy carries gRPC, raw TCP or UDP.
+
+```nginx
+server {
+  listen      [::]:80;
+  listen      80;
+  server_name dumpster.example.com;
+  access_log  /var/log/nginx/dumpster-access.log;
+  error_log   /var/log/nginx/dumpster-error.log;
+  underscores_in_headers off;
+
+  client_body_timeout 60s;
+  client_header_timeout 60s;
+  keepalive_timeout 75s;
+  lingering_timeout 5s;
+  send_timeout 60s;
+
+  include /home/dokku/dumpster/nginx.conf.d/*.conf;
+  location / {
+    return 301 https://$host:443$request_uri;
+  }
+}
+
+server {
+  listen      [::]:443 ssl;
+  listen      443 ssl;
+  http2 on;
+
+  # HTTP/3 is a second listener on the same port, over UDP, beside h1.1/h2 over
+  # TCP. It needs OpenSSL 3.2+, TLS 1.3, and UDP 443 open all the way in.
+  listen      [::]:443 quic reuseport;
+  listen      443 quic reuseport;
+  add_header  Alt-Svc 'h3=":443"; ma=86400' always;
+
+  server_name dumpster.example.com;
+  access_log  /var/log/nginx/dumpster-access.log;
+  error_log   /var/log/nginx/dumpster-error.log;
+  underscores_in_headers off;
+
+  client_body_timeout 60s;
+  client_header_timeout 60s;
+  keepalive_timeout 75s;
+  lingering_timeout 5s;
+  send_timeout 60s;
+
+  ssl_certificate           /home/dokku/dumpster/tls/server.crt;
+  ssl_certificate_key       /home/dokku/dumpster/tls/server.key;
+  ssl_protocols             TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers off;
+
+  location / {
+    gzip on;
+    gzip_min_length  1100;
+    gzip_buffers     4 32k;
+    gzip_types       text/css text/javascript application/javascript application/json application/xml image/svg+xml;
+    gzip_vary        on;
+    gzip_comp_level  6;
+
+    proxy_pass  http://dumpster-8080;
+
+    proxy_http_version 1.1;
+
+    # The default read timeout is 60s, which cuts SSE streams and idle
+    # WebSockets at exactly a minute.
+    proxy_connect_timeout 60;
+    proxy_read_timeout    3600;
+    proxy_send_timeout    3600;
+
+    # Buffering stays on; the app answers streams with X-Accel-Buffering: no,
+    # which turns it off per response instead of for every request.
+    proxy_buffer_size      4k;
+    proxy_buffering        on;
+    proxy_buffers          8 4k;
+    proxy_busy_buffers_size 8k;
+
+    # WebSocket upgrade.
+    proxy_set_header Upgrade    $http_upgrade;
+    proxy_set_header Connection $http_connection;
+
+    # $host, never $http_host: HTTP/3 carries the authority in :authority, nginx
+    # leaves $http_host empty for it, and the app answers 400 without a Host.
+    proxy_set_header Host                  $host;
+    proxy_set_header X-Forwarded-For       $remote_addr;
+    proxy_set_header X-Forwarded-Port      $server_port;
+    proxy_set_header X-Forwarded-Proto     $scheme;
+    proxy_set_header X-Forwarded-Protocol  $server_protocol;
+    proxy_set_header X-SSL-Server-Name     $ssl_server_name;
+    proxy_set_header X-Request-Start       $msec;
+  }
+
+  client_max_body_size 1m;
+
+  error_page 400 401 402 403 405 406 407 408 409 410 411 412 413 414 415 416 417 418 420 422 423 424 426 428 429 431 444 449 450 451 /400-error.html;
+  location /400-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+
+  error_page 404 /404-error.html;
+  location /404-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+
+  error_page 500 501 503 504 505 506 507 508 509 510 511 /500-error.html;
+  location /500-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+
+  error_page 502 /502-error.html;
+  location /502-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+
+  include /home/dokku/dumpster/nginx.conf.d/*.conf;
+}
+
+# The container. Dokku keeps this address in step with the running image.
+upstream dumpster-8080 {
+  server 172.17.0.10:8080;
+}
+```
+
+Each of those earns its place:
+
+| Directive | Why it is here |
+| --- | --- |
+| `proxy_http_version 1.1` | the app speaks HTTP/1.1; without it nginx uses 1.0 and WebSocket cannot upgrade |
+| `Upgrade` / `Connection` | the WebSocket handshake — without them `/ws` answers 400 |
+| `proxy_read_timeout 3600` | the 60 s default kills SSE and idle WebSockets; the app also sends a keep-alive comment every 15 s |
+| `proxy_buffering on` + `X-Accel-Buffering: no` | one setting for the whole vhost, streaming still honoured per response |
+| `Host $host` | must never be empty — `$http_host` is empty over HTTP/3 and the app answers `400` |
+| `X-Forwarded-For $remote_addr` | overwrites rather than appends, which is what makes `-trust-proxy` safe |
+| `X-Forwarded-Proto $scheme` | with `-trust-proxy`, marks the record `"tls": true, "tls_via": "proxy"` |
+| `X-Forwarded-Protocol $server_protocol` | the client's real HTTP version; the hop becomes `proxy_version` when they differ |
+| `X-SSL-Server-Name $ssl_server_name` | the TLS server name, which nginx otherwise terminates out of existence |
+| `listen … quic` + `Alt-Svc` | HTTP/3. Advertise it **only** once UDP 443 is reachable: browsers cache a failed alternative |
+| `client_max_body_size 1m` | matches the app's own `-max-body`; bigger bodies would be refused upstream anyway |
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
