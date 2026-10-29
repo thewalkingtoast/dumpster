@@ -82,7 +82,8 @@ type Request struct {
 	Subpath     string              `json:"subpath,omitempty"` // path minus the "/d/{id}" prefix
 	Query       string              `json:"query,omitempty"`
 	Host        string              `json:"host,omitempty"`
-	HTTPVersion string              `json:"http_version,omitempty"`
+	HTTPVersion  string             `json:"http_version,omitempty"` // what the client spoke, when known
+	ProxyVersion string             `json:"proxy_version,omitempty"` // the hop's own version, when it differs
 	Headers     map[string][]string `json:"headers,omitempty"`
 	ContentLen  int64               `json:"content_length,omitempty"`
 	BodyBytes   int                 `json:"body_bytes"`

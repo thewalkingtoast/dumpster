@@ -166,3 +166,85 @@ func TestDirectTLSCarriesItsSNI(t *testing.T) {
 		t.Fatalf("remote = %+v, want direct TLS with its SNI", rem)
 	}
 }
+
+// The app is proxied at HTTP/1.1, so without the forwarded version every record
+// claims 1.1 whatever the client spoke. Under -trust-proxy the client's version
+// wins and the hop is kept beside it.
+func TestClientProtocolIsRecordedFromTheProxy(t *testing.T) {
+	a := newTestApp(t, func(c *Config) { c.TrustProxy = true })
+	id := rent(t, a)
+
+	req, err := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/api/orders", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("X-Forwarded-Protocol", "HTTP/3.0")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	res.Body.Close()
+
+	rec := onlyRecord(t, a, id)
+	if rec.Req.HTTPVersion != "HTTP/3.0" {
+		t.Fatalf("http_version = %q, want the client's HTTP/3.0", rec.Req.HTTPVersion)
+	}
+	if rec.Req.ProxyVersion != "HTTP/1.1" {
+		t.Fatalf("proxy_version = %q, want the hop's HTTP/1.1", rec.Req.ProxyVersion)
+	}
+}
+
+// Without the switch the same header is a client's own claim, and the record must
+// describe the hop it can actually see.
+func TestClientProtocolIsIgnoredWithoutTrust(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	req, _ := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/api/orders", nil)
+	req.Header.Set("X-Forwarded-Protocol", "HTTP/3.0")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	res.Body.Close()
+
+	rec := onlyRecord(t, a, id)
+	if rec.Req.HTTPVersion != "HTTP/1.1" || rec.Req.ProxyVersion != "" {
+		t.Fatalf("http_version = %q proxy_version = %q; an untrusted header was believed",
+			rec.Req.HTTPVersion, rec.Req.ProxyVersion)
+	}
+}
+
+// Two ways this must not reach a record: a value that is not an HTTP version, or
+// one that merely restates the hop (no substitution happened, so no second field).
+func TestForwardedProtocolMustBeAVersionAndMustDiffer(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"HTTP/1.1", "HTTP/1.1"},
+		{"HTTP/2.0", "HTTP/2.0"},
+		{"HTTP/3", "HTTP/3"},
+		{"  HTTP/2.0  ", "HTTP/2.0"},
+		{"", ""},
+		{"HTTP/9.9", ""},
+		{"h3", ""},
+		{"HTTP/1.1\r\nX-Injected: 1", ""},
+		{"<script>", ""},
+	} {
+		if got := forwardedProtocol(tc.in); got != tc.want {
+			t.Fatalf("forwardedProtocol(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+
+	a := newTestApp(t, func(c *Config) { c.TrustProxy = true })
+	id := rent(t, a)
+	req, _ := http.NewRequest(http.MethodPost, a.BaseURL()+"/d/"+id+"/api/orders", nil)
+	req.Header.Set("X-Forwarded-Protocol", "HTTP/1.1") // same as the hop
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	res.Body.Close()
+	if rec := onlyRecord(t, a, id); rec.Req.ProxyVersion != "" {
+		t.Fatalf("proxy_version = %q for an unchanged hop, want empty", rec.Req.ProxyVersion)
+	}
+}

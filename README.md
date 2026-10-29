@@ -190,7 +190,7 @@ caller who opens thousands at once is only stopped by the count.
 
 | Flag | Env | Default | Meaning |
 | --- | --- | --- | --- |
-| `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off | believe the first `X-Forwarded-For` hop, and `X-Forwarded-Proto` for the recorded scheme |
+| `-trust-proxy` | `DUMPSTER_TRUST_PROXY` | off | believe the first `X-Forwarded-For` hop, `X-Forwarded-Proto` for the recorded scheme, and `X-Forwarded-Protocol` for the recorded HTTP version |
 | `-trust-real-ip` | `DUMPSTER_TRUST_REAL_IP` | off | believe `X-Real-IP` |
 
 Both are off by default because both are spoofable if the app is reachable
@@ -263,6 +263,12 @@ carry them.
    Without that header the field stays empty: SNI and `Host` are not the same
    thing, and a debugger that confuses them is worse than one that admits it does
    not know.
+
+   The same switch decides the recorded HTTP version. A proxy forwards to you at
+   its own version — usually `HTTP/1.1` — so `http_version` describes that hop, not
+   the client. Have the proxy send `X-Forwarded-Protocol $server_protocol` and the
+   record shows what the client actually spoke (h1.1, h2 or h3), with the hop kept
+   beside it as `proxy_version` whenever the two differ.
 5. **Publish UDP properly.** `8083:8083/udp`. See the warning above; this is the
    single most common "it doesn't work" report.
 6. **Keep the container non-root and the certificate readable.** The image runs

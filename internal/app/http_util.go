@@ -132,6 +132,18 @@ func readBody(body io.Reader, max int) (data []byte, truncated bool) {
 // remoteFrom describes the caller. With trustProxy set, the first
 // X-Forwarded-For hop becomes the reported IP, but the raw socket address and
 // the header itself are always preserved.
+// forwardedProtocol accepts a proxy's claim about the client's HTTP version, but
+// only in the one shape an HTTP version can take. Anything else is a header of
+// unknown provenance heading for a record a human will read, so it is dropped.
+func forwardedProtocol(raw string) string {
+	v := strings.TrimSpace(raw)
+	switch v {
+	case "HTTP/1.0", "HTTP/1.1", "HTTP/2.0", "HTTP/2", "HTTP/3.0", "HTTP/3":
+		return v
+	}
+	return ""
+}
+
 // clientTLS reports whether the *client's* leg used TLS, and how we know. Behind a
 // proxy that terminates TLS the app itself sees plaintext, so r.TLS is nil even
 // for a wss:// or https:// client; nginx then says what the client used in
@@ -265,6 +277,15 @@ func (a *App) requestEnvelope(r *http.Request, subpath string) *model.Request {
 	if tls, _ := clientTLS(r, a.cfg.TrustProxy); tls {
 		scheme = "https"
 	}
+	// The app only ever sees the proxy's hop, which is HTTP/1.1. Under -trust-proxy
+	// the client's own version replaces it, and the hop is kept beside it rather
+	// than thrown away: "h3 in, 1.1 in here" is the interesting pair.
+	version, hop := r.Proto, ""
+	if a.cfg.TrustProxy {
+		if v := forwardedProtocol(r.Header.Get("X-Forwarded-Protocol")); v != "" && v != r.Proto {
+			version, hop = v, r.Proto
+		}
+	}
 	return &model.Request{
 		Protocol:    scheme,
 		Method:      r.Method,
@@ -272,7 +293,8 @@ func (a *App) requestEnvelope(r *http.Request, subpath string) *model.Request {
 		Subpath:     subpath,
 		Query:       r.URL.RawQuery,
 		Host:        r.Host,
-		HTTPVersion: r.Proto,
+		HTTPVersion:  version,
+		ProxyVersion: hop,
 		Headers:     headers,
 		ContentLen:  r.ContentLength,
 	}

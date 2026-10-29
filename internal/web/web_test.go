@@ -370,7 +370,7 @@ func TestWebSocketHelperExplainsHowToSendFrames(t *testing.T) {
 		{"hung up without a close frame", "the helper does not explain why a one-shot row closes that way"},
 		{`data-cmd="wsframe"`, "no one-shot example"},
 		{`data-cmd="wsbinary"`, "no binary example"},
-		{"new WebSocket", "no alternative for people without websocat"},
+		{`data-cmd="wsbrowser"`, "no box for the people without websocat"},
 	} {
 		if !strings.Contains(ws, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
@@ -405,6 +405,15 @@ func TestGitHubLinkSitsBesideTheThemeSwitch(t *testing.T) {
 		if !strings.Contains(page, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
 		}
+	}
+
+	// The console alternative moved from prose into a command block; follow it.
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	if !strings.Contains(string(js), "new WebSocket('wss://") {
+		t.Fatal("no browser-console alternative anywhere: the wsbrowser command is missing")
 	}
 
 	// Every page carries it, in that order.
