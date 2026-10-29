@@ -169,6 +169,16 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
   transition:color .15s ease,border-color .15s ease;
 }
 .theme:hover{color:var(--accent);border-color:var(--accent)}
+/* The source link is the same control as the theme switch, so it is the same box:
+   same size, same border, same hover. Only the glyph differs (filled, not stroked). */
+.gh{
+  display:grid;place-items:center;width:34px;height:34px;
+  color:var(--muted);border:1px solid var(--line);border-radius:9px;
+  transition:color .15s ease,border-color .15s ease;
+}
+.gh:hover{color:var(--accent);border-color:var(--accent)}
+.gh:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.gh svg{width:19px;height:19px;display:block}
 .theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .theme svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
@@ -202,7 +212,7 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 /* .hero is the <main> itself, so its padding box reaches the viewport edge and
    right:0 put the switch against the glass. Inset it by the same 20px the content
    uses, which also lines it up with the text column on wide screens. */
-.corner{position:absolute;top:20px;right:20px}
+.corner{position:absolute;top:20px;right:20px;display:flex;align-items:center;gap:10px}
 .brand{display:flex;align-items:center;gap:.5em}
 /* A heading that wraps: keep the mark beside the first line, optically level with
    its cap height instead of centred against a multi-line block. */

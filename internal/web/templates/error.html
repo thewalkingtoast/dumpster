@@ -17,7 +17,7 @@
 <body class="home">
   {{template "backdrop"}}
   <main class="hero">
-    <div class="corner">{{template "themeToggle"}}</div>
+    <div class="corner">{{template "githubLink"}}{{template "themeToggle"}}</div>
     {{/* Error titles wrap to several lines, so the mark aligns to the first one
          rather than centring against the whole block. */}}
     <h1 class="brand brand-top">{{template "logo"}}<span>{{.Title}}</span></h1>

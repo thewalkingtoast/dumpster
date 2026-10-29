@@ -377,3 +377,75 @@ func TestWebSocketHelperExplainsHowToSendFrames(t *testing.T) {
 		}
 	}
 }
+
+// The source link is a control like the theme switch: same box, same corner, and
+// on the debug page it sits between the live status and the switch. "Same sized"
+// is asserted as a comparison, so resizing one without the other fails.
+func TestGitHubLinkSitsBesideTheThemeSwitch(t *testing.T) {
+	var buf bytes.Buffer
+	if err := Templates.ExecuteTemplate(&buf, "index.html", map[string]any{"Active": 3, "TTL": "12h"}); err != nil {
+		t.Fatalf("execute index.html: %v", err)
+	}
+	page := buf.String()
+
+	gh := strings.Index(page, `class="gh"`)
+	theme := strings.Index(page, `class="theme"`)
+	if gh < 0 {
+		t.Fatal("the rendered page has no GitHub link")
+	}
+	if theme < 0 || gh > theme {
+		t.Fatal("the GitHub link does not come before the theme switch")
+	}
+	for _, want := range []struct{ needle, why string }{
+		{`href="https://github.com/thewalkingtoast/dumpster"`, "the link does not point at the repository"},
+		{`rel="noopener noreferrer"`, "a target=_blank link without rel=noopener hands the new tab a handle on this one"},
+		{`aria-label="Source on GitHub"`, "the link has no accessible name"},
+		{`fill="currentColor"`, "the mark does not inherit the control's colour"},
+	} {
+		if !strings.Contains(page, want.needle) {
+			t.Fatalf("%s (missing %q)", want.why, want.needle)
+		}
+	}
+
+	// Every page carries it, in that order.
+	for _, name := range []string{"index.html", "debug.html", "error.html"} {
+		src, err := fs.ReadFile(templateFS, "templates/"+name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		g := strings.Index(string(src), `{{template "githubLink"}}`)
+		th := strings.Index(string(src), `{{template "themeToggle"}}`)
+		if g < 0 || th < 0 || g > th {
+			t.Fatalf("%s: the GitHub link is missing or after the theme switch", name)
+		}
+	}
+
+	// Same size as the theme switch, read out of the rules rather than assumed.
+	css := strings.ReplaceAll(readCSS(t), "\n", "")
+	size := func(rule string) string {
+		i := strings.Index(css, rule+"{")
+		if i < 0 {
+			return ""
+		}
+		block := css[i : i+strings.Index(css[i:], "}")]
+		w := regexp.MustCompile(`width:(\d+px)`).FindStringSubmatch(block)
+		h := regexp.MustCompile(`height:(\d+px)`).FindStringSubmatch(block)
+		if w == nil || h == nil {
+			return ""
+		}
+		return w[1] + "x" + h[1]
+	}
+	if got, want := size(".gh"), size(".theme"); got == "" || got != want {
+		t.Fatalf("the GitHub link is %q, the theme switch is %q: they must be the same size", got, want)
+	}
+}
+
+// readCSS is the stylesheet the binary serves, as a string.
+func readCSS(t *testing.T) string {
+	t.Helper()
+	b, err := fs.ReadFile(Static, "style.css")
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	return string(b)
+}
