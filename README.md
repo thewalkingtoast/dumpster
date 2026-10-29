@@ -292,11 +292,11 @@ paired with the previous stylesheet. Requests without a stamp revalidate
 
 ### A complete nginx config
 
-What Dokku renders for the live instance, with the hostname and container address
-changed. The three paths under `/home/dokku/dumpster/` are Dokku's per-app
-directories (config snippets, TLS material, logs); everything else is plain nginx
-and applies to any deployment. Ports `8081`–`8083` are published directly by the
-container — no proxy carries gRPC, raw TCP or UDP.
+A complete vhost, as deployed: TLS with h2 and h3, the WebSocket upgrade, streaming
+that survives buffering, and every forwarded header the record depends on. Point
+the certificate, snippet and error-page paths wherever your install keeps them.
+Ports `8081`–`8083` are published directly by the container — no proxy carries
+gRPC, raw TCP or UDP.
 
 ```nginx
 server {
@@ -313,7 +313,7 @@ server {
   lingering_timeout 5s;
   send_timeout 60s;
 
-  include /home/dokku/dumpster/nginx.conf.d/*.conf;
+  include /etc/nginx/dumpster.d/*.conf;
   location / {
     return 301 https://$host:443$request_uri;
   }
@@ -341,8 +341,8 @@ server {
   lingering_timeout 5s;
   send_timeout 60s;
 
-  ssl_certificate           /home/dokku/dumpster/tls/server.crt;
-  ssl_certificate_key       /home/dokku/dumpster/tls/server.key;
+  ssl_certificate           /etc/nginx/tls/server.crt;
+  ssl_certificate_key       /etc/nginx/tls/server.key;
   ssl_protocols             TLSv1.2 TLSv1.3;
   ssl_prefer_server_ciphers off;
 
@@ -354,7 +354,7 @@ server {
     gzip_vary        on;
     gzip_comp_level  6;
 
-    proxy_pass  http://dumpster-8080;
+    proxy_pass  http://dumpster;
 
     proxy_http_version 1.1;
 
@@ -389,23 +389,23 @@ server {
   client_max_body_size 1m;
 
   error_page 400 401 402 403 405 406 407 408 409 410 411 412 413 414 415 416 417 418 420 422 423 424 426 428 429 431 444 449 450 451 /400-error.html;
-  location /400-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+  location /400-error.html { root /usr/share/nginx/errors; internal; }
 
   error_page 404 /404-error.html;
-  location /404-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+  location /404-error.html { root /usr/share/nginx/errors; internal; }
 
   error_page 500 501 503 504 505 506 507 508 509 510 511 /500-error.html;
-  location /500-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+  location /500-error.html { root /usr/share/nginx/errors; internal; }
 
   error_page 502 /502-error.html;
-  location /502-error.html { root /var/lib/dokku/data/nginx-vhosts/dokku-errors; internal; }
+  location /502-error.html { root /usr/share/nginx/errors; internal; }
 
-  include /home/dokku/dumpster/nginx.conf.d/*.conf;
+  include /etc/nginx/dumpster.d/*.conf;
 }
 
-# The container. Dokku keeps this address in step with the running image.
-upstream dumpster-8080 {
-  server 172.17.0.10:8080;
+# Where the app listens. A containerised deployment would use its address.
+upstream dumpster {
+  server 127.0.0.1:8080;
 }
 ```
 

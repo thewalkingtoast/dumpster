@@ -32,6 +32,12 @@ func TestReadmeNginxExampleKeepsTheHardWonDirectives(t *testing.T) {
 	}
 	block := readme[open : open+len("```nginx")+closeAt]
 
+	// The example is deliberately vendor-neutral: no platform's name, no platform's
+	// paths. It is here to be copied into whatever proxy you run.
+	if strings.Contains(strings.ToLower(block), "dokku") {
+		t.Fatal("the nginx example names a platform; it must stay copy-pasteable anywhere")
+	}
+
 	for _, want := range []struct{ needle, why string }{
 		{`proxy_set_header Host                  $host;`, "Host must be $host: $http_host is empty over HTTP/3 and the app answers 400"},
 		{`X-Forwarded-Protocol  $server_protocol`, "without it every record claims the proxy's HTTP/1.1"},
