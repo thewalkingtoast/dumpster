@@ -20,7 +20,28 @@
 {{/* The tubes alone, without the badge's dark plate: as a page-wide watermark the
      plate would read as a grey block on the light theme. Purely decorative, so it
      is hidden from assistive tech and never takes a pointer event. */}}
-{{define "backdrop"}}<div class="backdrop" aria-hidden="true"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">{{template "logoArt"}}</svg></div>{{end}}
+{{/* The watermark is the same tubing, lit: the badge keeps a flat mark for small
+     sizes, while this one carries the sign's bloom — a wide spill, a tight halo,
+     and the unblurred tube on top, exactly as icon.svg builds it. Filter ids are
+     prefixed so the badge and the watermark can share a page. */}}
+{{define "backdrop"}}<div class="backdrop" aria-hidden="true"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="wmTube" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.55" result="wmSpill"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.65" result="wmHalo"/>
+      <feMerge>
+        <feMergeNode in="wmSpill"/>
+        <feMergeNode in="wmHalo"/>
+        <feMergeNode in="wmHalo"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#wmTube)">{{template "logoArt"}}</g>
+  {{/* The gas itself: the same tubes again, thin and near-white, sitting inside
+       their own bloom. Without this a low-opacity glow reads as a smudge. */}}
+  <g class="wmCore">{{template "logoArt"}}</g>
+</svg></div>{{end}}
 
 {{define "themeToggle"}}<button class="theme" type="button" data-theme-toggle aria-pressed="false"
               aria-label="Switch to light mode" title="Switch to light mode">

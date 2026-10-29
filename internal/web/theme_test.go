@@ -416,6 +416,15 @@ func TestLogoWatermarkIsDecorationOnly(t *testing.T) {
 	if !strings.Contains(block, "<svg viewBox=") {
 		t.Fatal("the watermark is not wrapped in its own <svg>, so the tubes render nowhere")
 	}
+	// Neon, not paint: a blurred spill and halo under a bright core. Strip either
+	// half and the mark goes flat — which is exactly how it shipped once.
+	if !strings.Contains(block, "feGaussianBlur") || !strings.Contains(block, `filter="url(#wmTube)"`) {
+		// Both halves matter: a filter defined but never applied is just markup.
+		t.Fatal("the watermark has no bloom applied, so the tubes will read as flat lines")
+	}
+	if !strings.Contains(block, `class="wmCore"`) {
+		t.Fatal("the watermark has no hot core, so the glow has nothing to come from")
+	}
 
 	for _, page := range []string{"index.html", "debug.html", "error.html"} {
 		b, err := fs.ReadFile(templateFS, "templates/"+page)
@@ -433,11 +442,15 @@ func TestLogoWatermarkIsDecorationOnly(t *testing.T) {
 	}
 	css := strings.ReplaceAll(string(raw), "\n", "")
 	for _, want := range []struct{ needle, why string }{
-		{"position:fixed;top:0;right:0;bottom:0;width:50%", "the watermark does not pin itself to the right half"},
+		{"position:fixed;inset:0", "the watermark does not cover the page it bleeds off"},
 		{"opacity:.15", "the watermark is not at 15%"},
-		{"rotate(60deg)", "the watermark is not angled 60 degrees"},
+		{"rotate(-65deg)", "the watermark is not angled -65 degrees"},
 		{"pointer-events:none", "the watermark can swallow clicks"},
 		{"z-index:0", "the watermark has no stacking order of its own"},
+		{".backdrop .wmCore *{stroke:#f6ecff", "the hot core pass is unstyled, so it inherits the tube colours"},
+		// Hung off the corner: its centre sits on the bottom-right corner, so half
+		// of it is past the right edge and half below the fold.
+		{"position:absolute;top:100%;left:100%", "the watermark is not anchored half off the corner"},
 	} {
 		if !strings.Contains(css, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)

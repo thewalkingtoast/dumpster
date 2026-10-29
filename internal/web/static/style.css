@@ -22,22 +22,27 @@ main{max-width:1180px;margin:0 auto;padding:44px 20px 80px;position:relative;z-i
    stamp. pointer-events:none because decoration must never eat a click, and a
    z-index beneath the content so the text stays legible through it. */
 .backdrop{
-  position:fixed;top:0;right:0;bottom:0;width:50%;
+  position:fixed;inset:0;
   overflow:hidden;pointer-events:none;user-select:none;
   opacity:.15;z-index:0;
 }
-/* The art occupies the middle ~63% of its viewBox, so a square as wide as the
-   half-page still shows the whole mark once it is turned 60°: the empty corners
-   are what the clip takes, not the tubes. */
+/* Additive light: on the dark theme the tubes glow instead of sitting on top of
+   the background like paint. On the light theme screen-blending would wash them
+   to nothing, so it stays off there. */
+[data-theme="dark"] .backdrop svg{mix-blend-mode:screen}
+/* The geometry carries its own stroke attributes for the badge's sake, so the
+   hot-core pass is overridden here rather than duplicated in the template. */
+.backdrop .wmCore *{stroke:#f6ecff!important;stroke-width:1.15!important;opacity:.9}
+/* Hung off the bottom-right corner: its centre sits exactly on the corner, so
+   half the mark is past the right edge and half is below the fold. Angled -65°. */
 .backdrop svg{
-  position:absolute;top:50%;left:50%;
-  width:100%;height:auto;
-  transform:translate(-50%,-50%) rotate(60deg);
+  position:absolute;top:100%;left:100%;
+  width:68vw;height:auto;
+  transform:translate(-50%,-50%) rotate(-65deg);
 }
 @media (max-width:700px){
-  /* Half of a phone is a sliver; give it more of the width and less of the eye. */
-  .backdrop{width:80%}
-  .backdrop svg{width:100%}
+  /* A corner-anchored mark at 80vw swallows a phone; keep it a corner accent. */
+  .backdrop svg{width:95vw}
 }
 .hero{max-width:660px;padding-top:11vh}
 h1{font-size:clamp(2.1rem,5.5vw,3.2rem);line-height:1.05;margin:0 0 .45em;letter-spacing:-.02em}
