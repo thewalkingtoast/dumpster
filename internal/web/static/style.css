@@ -223,4 +223,4 @@ pre.cmd.copied{border-color:var(--sage);color:var(--sage)}
 .bar h1{align-items:center;flex-wrap:wrap;row-gap:2px}
 .bar h1 .logo{width:1.45rem;height:1.45rem}
 details{cursor:pointer}
-details > summary {margin:4px 0;font-size:0.8em;cursor:pointer}
+details > summary {margin:4px 0;font-size:0.8em;cursor:pointer;color:var(--accent)}
