@@ -3,7 +3,10 @@ package app
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"time"
 	"unicode/utf8"
@@ -117,9 +120,18 @@ func closeNote(err error) string {
 		return "client went away"
 	case status != -1:
 		return "closed: " + status.String()
-	default:
-		return "read error: " + err.Error()
 	}
+	// No close frame arrived: the socket was simply cut. That is exactly what a
+	// one-shot client does — `websocat -n1` exits without a close handshake — and
+	// what a dropped network looks like. Neither is a protocol fault, and dressing
+	// the library's internals up as one makes a debugging tool lie.
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return "client hung up without a close frame"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "connection ended by the server"
+	}
+	return "read error: " + err.Error()
 }
 
 // frameType names a WebSocket message type the way the UI shows it.

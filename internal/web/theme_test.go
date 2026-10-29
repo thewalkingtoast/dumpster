@@ -444,7 +444,7 @@ func TestLogoWatermarkIsDecorationOnly(t *testing.T) {
 	for _, want := range []struct{ needle, why string }{
 		{"position:fixed;inset:0", "the watermark does not cover the page it bleeds off"},
 		{"opacity:.15", "the watermark is not at 15%"},
-		{"rotate(-65deg)", "the watermark is not angled -65 degrees"},
+
 		{"pointer-events:none", "the watermark can swallow clicks"},
 		{"z-index:0", "the watermark has no stacking order of its own"},
 		{".backdrop .wmCore *{stroke:#f6ecff", "the hot core pass is unstyled, so it inherits the tube colours"},
@@ -455,6 +455,12 @@ func TestLogoWatermarkIsDecorationOnly(t *testing.T) {
 		if !strings.Contains(css, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
 		}
+	}
+	// The angle and the bleed are design knobs (they have moved from -65 to -35);
+	// what must not regress is that it is angled at all, and angled *up* to the left
+	// rather than down into the corner.
+	if !regexp.MustCompile(`rotate\(-\d+(\.\d+)?deg\)`).MatchString(css) {
+		t.Fatal("the watermark is not angled with a negative rotation")
 	}
 	// It has to sit *under* the page, or it washes over the text it is behind.
 	if !regexp.MustCompile(`main\{[^}]*z-index:1`).MatchString(css) {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -261,4 +262,75 @@ func TestBinaryFrameWithValidUTF8IsRecordedAsText(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("no binary event recorded")
+}
+
+// A one-shot client — `websocat -n1`, or any script that just hangs up — leaves a
+// row whose close note says so. The library's frame-level grievance ("failed to
+// get reader: failed to read frame header: EOF") is not a diagnosis, and a
+// debugging tool that prints it teaches the reader to distrust their own setup.
+func TestAbruptHangupReadsAsAHangup(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, wsURL(a, "/d/"+id+"/ws"), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	if err := c.Write(ctx, websocket.MessageText, []byte("one shot")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, _, err := c.Read(ctx); err != nil {
+		t.Fatalf("read echo: %v", err)
+	}
+	c.CloseNow() // straight down: no close frame, exactly like a killed pipe
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rec := range records(t, a, id) {
+			if rec.Kind != model.KindWS || !rec.Closed {
+				continue
+			}
+			if strings.Contains(rec.CloseNote, "failed to") {
+				t.Fatalf("close note leaks library internals: %q", rec.CloseNote)
+			}
+			if rec.CloseNote != "client hung up without a close frame" {
+				t.Fatalf("close note = %q, want the hangup wording", rec.CloseNote)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the socket row never closed")
+}
+
+// A polite close still says so, and says which code.
+func TestNormalCloseStillReadsAsNormal(t *testing.T) {
+	a := newTestApp(t)
+	id := rent(t, a)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, wsURL(a, "/d/"+id+"/ws"), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	if err := c.Close(websocket.StatusNormalClosure, "done"); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rec := range records(t, a, id) {
+			if rec.Kind == model.KindWS && rec.Closed {
+				if rec.CloseNote != "closed normally" {
+					t.Fatalf("close note = %q, want closed normally", rec.CloseNote)
+				}
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the socket row never closed")
 }

@@ -127,10 +127,10 @@ func TestConnectIsTheDemonstration(t *testing.T) {
 		}
 	}
 	for _, want := range []struct{ needle, why string }{
-		{"one a second, to every listener", "the SSE heading does not say what happens on connect"},
+		{"every listener", "the SSE heading does not say the burst is shared"},
 		{"Five events", "the SSE hint does not mention the burst"},
 		{"every listener", "the SSE hint does not say the burst is shared"},
-		{"five pings one a second", "the WebSocket hint does not mention the pings"},
+		{"pings", "the WebSocket hint does not mention the pings"},
 	} {
 		if !strings.Contains(page, want.needle) {
 			t.Fatalf("%s (missing %q)", want.why, want.needle)
@@ -367,6 +367,7 @@ func TestWebSocketHelperExplainsHowToSendFrames(t *testing.T) {
 		{"press Enter", "the helper does not say how to send a frame interactively"},
 		{"one text frame", "the helper does not say a line is a frame"},
 		{"base64", "the helper does not explain how binary frames are recorded"},
+		{"hung up without a close frame", "the helper does not explain why a one-shot row closes that way"},
 		{`data-cmd="wsframe"`, "no one-shot example"},
 		{`data-cmd="wsbinary"`, "no binary example"},
 		{"new WebSocket", "no alternative for people without websocat"},
