@@ -163,6 +163,9 @@
       query: req.query,
       host: req.host,
       http_version: req.http_version,
+      // The hop's own version, when the client spoke something else. Undefined
+      // values drop out of the JSON, so an unchanged hop shows nothing.
+      proxy_version: req.proxy_version,
       content_length: req.content_length,
       body_bytes: req.body_bytes,
       truncated: req.truncated || undefined,

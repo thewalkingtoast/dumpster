@@ -349,6 +349,21 @@ func TestEveryCommandBoxHasACommand(t *testing.T) {
 }
 
 // "Echoes your frames" is a promise; the helper has to say how to make one.
+// The detail panel is a curated subset, not the whole record: a field added to
+// the model but forgotten here is invisible on the page. http_version and its
+// proxy sibling are the ones a debugging session needs.
+func TestDetailPanelShowsBothProtocolVersions(t *testing.T) {
+	js, err := fs.ReadFile(Static, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	for _, want := range []string{"http_version: req.http_version", "proxy_version: req.proxy_version"} {
+		if !strings.Contains(string(js), want) {
+			t.Fatalf("the request panel does not surface %q", want)
+		}
+	}
+}
+
 func TestWebSocketHelperExplainsHowToSendFrames(t *testing.T) {
 	page, err := fs.ReadFile(templateFS, "templates/debug.html")
 	if err != nil {
